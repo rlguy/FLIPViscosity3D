@@ -18,53 +18,50 @@ public:
 
    void advance(float dt);
 
-   //Grid dimensions
-   int ni,nj,nk;
-   float dx;
-   
-   //Fluid velocity
-   Array3f u, v, w;
-   Array3f temp_u, temp_v, temp_w;
-   
-   //Static geometry representation
-   Array3f nodal_solid_phi;
-   Array3f u_weights, v_weights, w_weights;
-   Array3c u_valid, v_valid, w_valid;
-
    std::vector<Vec3f> particles;
-   float particle_radius;
-
-   Array3f liquid_phi;
-
-   //Data arrays for extrapolation
-   Array3c valid, old_valid;
-
-   //Solver data
-   PCGSolver<double> solver;
-   SparseMatrixd matrix;
-   std::vector<double> rhs;
-   std::vector<double> pressure;
-   
-   Vec3f get_velocity(const Vec3f& position);
 
 private:
 
-   Vec3f trace_rk2(const Vec3f& position, float dt);
+   Vec3f _trace_rk2(const Vec3f& position, float dt);
 
-   float cfl();
+   float _cfl();
+   Vec3f _get_velocity(const Vec3f& position);
 
-   void advect_particles(float dt);
-   void advect(float dt);
-   void add_force(float dt);
-   void project(float dt);
-   void constrain_velocity();
+   void _advect_particles(float dt);
+   void _advect(float dt);
+   void _add_force(float dt);
+   void _project(float dt);
+   void _constrain_velocity();
 
    //helpers for pressure projection
-   void compute_weights();
-   void solve_pressure(float dt);
-   void compute_phi();
+   void _compute_weights();
+   void _solve_pressure(float dt);
+   void _compute_phi();
 
+   //Grid dimensions
+   int _isize;
+   int _jsize;
+   int _ksize;
+   float _dx;
+   
+   //Fluid velocity
+   Array3f _u, _v, _w;
+   Array3f _temp_u, _temp_v, _temp_w;
+   
+   //Static geometry representation
+   Array3f _nodal_solid_phi;
+   Array3f _u_weights, _v_weights, _w_weights;
+   Array3c _u_valid, _v_valid, _w_valid;
 
+   float _particle_radius;
+
+   Array3f _liquid_phi;
+
+   //Solver data
+   PCGSolver<double> _solver;
+   SparseMatrixd _matrix;
+   std::vector<double> _rhs;
+   std::vector<double> _pressure;
 
 };
 

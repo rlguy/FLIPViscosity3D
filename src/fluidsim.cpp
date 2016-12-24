@@ -8,55 +8,53 @@
 void extrapolate(Array3f& grid, Array3c& valid);
 
 void FluidSim::initialize(float width, int ni_, int nj_, int nk_) {
-   ni = ni_;
-   nj = nj_;
-   nk = nk_;
-   dx = width / (float)ni;
-   u.resize(ni+1,nj,nk); temp_u.resize(ni+1,nj,nk); u_weights.resize(ni+1,nj,nk); u_valid.resize(ni+1,nj,nk);
-   v.resize(ni,nj+1,nk); temp_v.resize(ni,nj+1,nk); v_weights.resize(ni,nj+1,nk); v_valid.resize(ni,nj+1,nk);
-   w.resize(ni,nj,nk+1); temp_w.resize(ni,nj,nk+1); w_weights.resize(ni,nj,nk+1); w_valid.resize(ni,nj,nk+1);
+   _isize = ni_;
+   _jsize = nj_;
+   _ksize = nk_;
+   _dx = width / (float)_isize;
+   _u.resize(_isize+1,_jsize,_ksize); _temp_u.resize(_isize+1,_jsize,_ksize); _u_weights.resize(_isize+1,_jsize,_ksize); _u_valid.resize(_isize+1,_jsize,_ksize);
+   _v.resize(_isize,_jsize+1,_ksize); _temp_v.resize(_isize,_jsize+1,_ksize); _v_weights.resize(_isize,_jsize+1,_ksize); _v_valid.resize(_isize,_jsize+1,_ksize);
+   _w.resize(_isize,_jsize,_ksize+1); _temp_w.resize(_isize,_jsize,_ksize+1); _w_weights.resize(_isize,_jsize,_ksize+1); _w_valid.resize(_isize,_jsize,_ksize+1);
 
-   particle_radius = (float)(dx * 1.01*sqrt(3.0)/2.0); 
+   _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
    //make the particles large enough so they always appear on the grid
 
-   u.set_zero();
-   v.set_zero();
-   w.set_zero();
-   nodal_solid_phi.resize(ni+1,nj+1,nk+1);
-   valid.resize(ni+1, nj+1, nk+1);
-   old_valid.resize(ni+1, nj+1, nk+1);
-   liquid_phi.resize(ni,nj,nk);
+   _u.set_zero();
+   _v.set_zero();
+   _w.set_zero();
+   _nodal_solid_phi.resize(_isize+1,_jsize+1,_ksize+1);
+   _liquid_phi.resize(_isize,_jsize,_ksize);
 
 }
 
 //Initialize the grid-based signed distance field that dictates the position of the solid boundary
 void FluidSim::set_boundary(float (*phi)(const Vec3f&)) {
 
-   for(int k = 0; k < nk+1; ++k) for(int j = 0; j < nj+1; ++j) for(int i = 0; i < ni+1; ++i) {
-      Vec3f pos(i*dx,j*dx,k*dx);
-      nodal_solid_phi(i,j,k) = phi(pos);
+   for(int k = 0; k < _ksize+1; ++k) for(int j = 0; j < _jsize+1; ++j) for(int i = 0; i < _isize+1; ++i) {
+      Vec3f pos(i*_dx,j*_dx,k*_dx);
+      _nodal_solid_phi(i,j,k) = phi(pos);
    }
 
 }
 
 void FluidSim::set_liquid(float (*phi)(const Vec3f&)) {
-   //surface.reset_phi(phi, dx, Vec3f(0.5f*dx,0.5f*dx,0.5f*dx), ni, nj, nk);
+   //surface.reset_phi(phi, _dx, Vec3f(0.5f*_dx,0.5f*_dx,0.5f*_dx), ni, _jsize, _ksize);
    
    //initialize particles
    int seed = 0;
-   for(int k = 0; k < nk; ++k) {
-      for(int j = 0; j < nj; ++j) { 
-         for(int i = 0; i < ni; ++i) {
+   for(int k = 0; k < _ksize; ++k) {
+      for(int j = 0; j < _jsize; ++j) { 
+         for(int i = 0; i < _isize; ++i) {
 
-            for (int idx = 0; idx < 8; idx++) {
-               Vec3f pos(i*dx,j*dx,k*dx);
+            for (int i_dx = 0; i_dx < 8; i_dx++) {
+               Vec3f pos(i*_dx,j*_dx,k*_dx);
                float a = randhashf(seed++); 
                float b = randhashf(seed++); 
                float c = randhashf(seed++);
-               pos += dx * Vec3f(a,b,c);
+               pos += _dx * Vec3f(a,b,c);
 
-               if(phi(pos) <= -particle_radius) {
-                  float solid_phi = interpolate_value(pos/dx, nodal_solid_phi);
+               if(phi(pos) <= -_particle_radius) {
+                  float solid_phi = interpolate_value(pos/_dx, _nodal_solid_phi);
                   if(solid_phi >= 0)
                      particles.push_back(pos);
                }
@@ -72,62 +70,62 @@ void FluidSim::advance(float dt) {
    float t = 0;
 
    while(t < dt) {
-      float substep = cfl();   
+      float substep = _cfl();   
       if(t + substep > dt)
          substep = dt - t;
       printf("Taking substep of size %f (to %0.3f%% of the frame)\n", substep, 100 * (t+substep)/dt);
       
       printf(" Surface (particle) advection\n");
-      advect_particles(substep);
+      _advect_particles(substep);
 
       printf(" Velocity advection\n");
       //Advance the velocity
-      advect(substep);
-      add_force(substep);
+      _advect(substep);
+      _add_force(substep);
 
-      printf(" Pressure projection\n");
-      project(substep); 
+      printf(" _pressure projection\n");
+      _project(substep); 
        
-      //Pressure projection only produces valid velocities in faces with non-zero associated face area.
+      //_pressure projection only produces valid velocities in faces with non-zero associated face area.
       //Because the advection step may interpolate from these invalid faces, 
       //we must extrapolate velocities from the fluid domain into these invalid faces.
       printf(" Extrapolation\n");
-      extrapolate(u, u_valid);
-      extrapolate(v, v_valid);
-      extrapolate(w, w_valid);
+      extrapolate(_u, _u_valid);
+      extrapolate(_v, _v_valid);
+      extrapolate(_w, _w_valid);
     
       //For extrapolated velocities, replace the normal component with
       //that of the object.
       printf(" Constrain boundary velocities\n");
-      constrain_velocity();
+      _constrain_velocity();
 
       t+=substep;
    }
 }
 
 
-float FluidSim::cfl() {
+float FluidSim::_cfl() {
 
    float maxvel = 0;
-   for(unsigned int i = 0; i < u.a.size(); ++i)
-      maxvel = fmax(maxvel, fabs(u.a[i]));
-   for(unsigned int i = 0; i < v.a.size(); ++i)
-      maxvel = fmax(maxvel, fabs(v.a[i]));
-   for(unsigned int i = 0; i < w.a.size(); ++i)
-      maxvel = fmax(maxvel, fabs(w.a[i]));
+   for(unsigned int i = 0; i < _u.a.size(); ++i)
+      maxvel = fmax(maxvel, fabs(_u.a[i]));
+   for(unsigned int i = 0; i < _v.a.size(); ++i)
+      maxvel = fmax(maxvel, fabs(_v.a[i]));
+   for(unsigned int i = 0; i < _w.a.size(); ++i)
+      maxvel = fmax(maxvel, fabs(_w.a[i]));
    
-   return 5*dx / maxvel;
+   return 5*_dx / maxvel;
 }
 
 void FluidSim::add_particle(const Vec3f& pos) {
    particles.push_back(pos);
 }
 
-void FluidSim::add_force(float dt) {
+void FluidSim::_add_force(float dt) {
 
    //gravity
-   for(int k = 0;k < nk; ++k) for(int j = 0; j < nj+1; ++j) for(int i = 0; i < ni; ++i) {
-      v(i,j,k) -= 9.81f * dt;
+   for(int k = 0;k < _ksize; ++k) for(int j = 0; j < _jsize+1; ++j) for(int i = 0; i < _isize; ++i) {
+      _v(i,j,k) -= 9.81f * dt;
    }
 
 }
@@ -136,76 +134,76 @@ void FluidSim::add_force(float dt) {
 
 //For extrapolated points, replace the normal component
 //of velocity with the object velocity (in this case zero).
-void FluidSim::constrain_velocity() {
-   temp_u = u;
-   temp_v = v;
-   temp_w = w;
+void FluidSim::_constrain_velocity() {
+   _temp_u = _u;
+   _temp_v = _v;
+   _temp_w = _w;
 
    //(At lower grid resolutions, the normal estimate from the signed
    //distance function can be poor, so it doesn't work quite as well.
    //An exact normal would do better if we had it for the geometry.)
 
    //constrain u
-   for(int k = 0; k < u.nk;++k) for(int j = 0; j < u.nj; ++j) for(int i = 0; i < u.ni; ++i) {
-      if(u_weights(i,j,k) == 0) {
+   for(int k = 0; k < _u.nk;++k) for(int j = 0; j < _u.nj; ++j) for(int i = 0; i < _u.ni; ++i) {
+      if(_u_weights(i,j,k) == 0) {
          //apply constraint
-         Vec3f pos(i*dx, (j+0.5f)*dx, (k+0.5f)*dx);
-         Vec3f vel = get_velocity(pos);
+         Vec3f pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+         Vec3f vel = _get_velocity(pos);
          Vec3f normal(0,0,0);
-         interpolate_gradient(normal, pos/dx, nodal_solid_phi); 
+         interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
          normalize(normal);
          float perp_component = dot(vel, normal);
          vel -= perp_component*normal;
-         temp_u(i,j,k) = vel[0];
+         _temp_u(i,j,k) = vel[0];
       }
    }
 
    //constrain v
-   for(int k = 0; k < v.nk;++k) for(int j = 0; j < v.nj; ++j) for(int i = 0; i < v.ni; ++i) {
-      if(v_weights(i,j,k) == 0) {
+   for(int k = 0; k < _v.nk;++k) for(int j = 0; j < _v.nj; ++j) for(int i = 0; i < _v.ni; ++i) {
+      if(_v_weights(i,j,k) == 0) {
          //apply constraint
-         Vec3f pos((i+0.5f)*dx, j*dx, (k+0.5f)*dx);
-         Vec3f vel = get_velocity(pos);
+         Vec3f pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+         Vec3f vel = _get_velocity(pos);
          Vec3f normal(0,0,0);
-         interpolate_gradient(normal, pos/dx, nodal_solid_phi); 
+         interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
          normalize(normal);
          float perp_component = dot(vel, normal);
          vel -= perp_component*normal;
-         temp_v(i,j,k) = vel[1];
+         _temp_v(i,j,k) = vel[1];
       }
    }
 
    //constrain w
-   for(int k = 0; k < w.nk;++k) for(int j = 0; j < w.nj; ++j) for(int i = 0; i < w.ni; ++i) {
-      if(w_weights(i,j,k) == 0) {
+   for(int k = 0; k < _w.nk;++k) for(int j = 0; j < _w.nj; ++j) for(int i = 0; i < _w.ni; ++i) {
+      if(_w_weights(i,j,k) == 0) {
          //apply constraint
-         Vec3f pos((i+0.5f)*dx, (j+0.5f)*dx, k*dx);
-         Vec3f vel = get_velocity(pos);
+         Vec3f pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+         Vec3f vel = _get_velocity(pos);
          Vec3f normal(0,0,0);
-         interpolate_gradient(normal, pos/dx, nodal_solid_phi); 
+         interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
          normalize(normal);
          float perp_component = dot(vel, normal);
          vel -= perp_component*normal;
-         temp_w(i,j,k) = vel[2];
+         _temp_w(i,j,k) = vel[2];
       }
    }
 
    //update
-   u = temp_u;
-   v = temp_v;
-   w = temp_w;
+   _u = _temp_u;
+   _v = _temp_v;
+   _w = _temp_w;
 
 }
 
-void FluidSim::advect_particles(float dt) { 
+void FluidSim::_advect_particles(float dt) { 
    for(unsigned int p = 0; p < particles.size(); ++p) {
-      particles[p] = trace_rk2(particles[p], dt);
+      particles[p] = _trace_rk2(particles[p], dt);
    
       //check boundaries and project exterior particles back in
-      float phi_val = interpolate_value(particles[p]/dx, nodal_solid_phi); 
+      float phi_val = interpolate_value(particles[p]/_dx, _nodal_solid_phi); 
       if(phi_val < 0) {
          Vec3f grad;
-         interpolate_gradient(grad, particles[p]/dx, nodal_solid_phi);
+         interpolate_gradient(grad, particles[p]/_dx, _nodal_solid_phi);
          if(mag(grad) > 0)
             normalize(grad);
          particles[p] -= phi_val * grad;
@@ -216,108 +214,108 @@ void FluidSim::advect_particles(float dt) {
 }
 
 //Basic first order semi-Lagrangian advection of velocities
-void FluidSim::advect(float dt) {
+void FluidSim::_advect(float dt) {
 
-   temp_u.assign(0);
-   temp_v.assign(0);
-   temp_w.assign(0);
+   _temp_u.assign(0);
+   _temp_v.assign(0);
+   _temp_w.assign(0);
 
    //semi-Lagrangian advection on u-component of velocity
-   for(int k = 0; k < nk; ++k) for(int j = 0; j < nj; ++j) for(int i = 0; i < ni+1; ++i) {
-      Vec3f pos(i*dx, (j+0.5f)*dx, (k+0.5f)*dx);
-      pos = trace_rk2(pos, -dt);
-      temp_u(i,j,k) = get_velocity(pos)[0];  
+   for(int k = 0; k < _ksize; ++k) for(int j = 0; j < _jsize; ++j) for(int i = 0; i < _isize+1; ++i) {
+      Vec3f pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+      pos = _trace_rk2(pos, -dt);
+      _temp_u(i,j,k) = _get_velocity(pos)[0];  
    }
 
    //semi-Lagrangian advection on v-component of velocity
-   for(int k = 0; k < nk; ++k) for(int j = 0; j < nj+1; ++j) for(int i = 0; i < ni; ++i) {
-      Vec3f pos((i+0.5f)*dx, j*dx, (k+0.5f)*dx);
-      pos = trace_rk2(pos, -dt);
-      temp_v(i,j,k) = get_velocity(pos)[1];
+   for(int k = 0; k < _ksize; ++k) for(int j = 0; j < _jsize+1; ++j) for(int i = 0; i < _isize; ++i) {
+      Vec3f pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+      pos = _trace_rk2(pos, -dt);
+      _temp_v(i,j,k) = _get_velocity(pos)[1];
    }
 
    //semi-Lagrangian advection on w-component of velocity
-   for(int k = 0; k < nk+1; ++k) for(int j = 0; j < nj; ++j) for(int i = 0; i < ni; ++i) {
-      Vec3f pos((i+0.5f)*dx, (j+0.5f)*dx, k*dx);
-      pos = trace_rk2(pos, -dt);
-      temp_w(i,j,k) = get_velocity(pos)[2];
+   for(int k = 0; k < _ksize+1; ++k) for(int j = 0; j < _jsize; ++j) for(int i = 0; i < _isize; ++i) {
+      Vec3f pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+      pos = _trace_rk2(pos, -dt);
+      _temp_w(i,j,k) = _get_velocity(pos)[2];
    }
 
    //move update velocities into u/v vectors
-   u = temp_u;
-   v = temp_v;
-   w = temp_w;
+   _u = _temp_u;
+   _v = _temp_v;
+   _w = _temp_w;
 }
 
-void FluidSim::compute_phi() {
+void FluidSim::_compute_phi() {
    
    //grab from particles
-   liquid_phi.assign(3*dx);
+   _liquid_phi.assign(3*_dx);
    for(unsigned int p = 0; p < particles.size(); ++p) {
-      Vec3i cell_ind(particles[p] / dx);
-      for(int k = max(0,cell_ind[2] - 1); k <= min(cell_ind[2]+1,nk-1); ++k) {
-         for(int j = max(0,cell_ind[1] - 1); j <= min(cell_ind[1]+1,nj-1); ++j) {
-            for(int i = max(0,cell_ind[0] - 1); i <= min(cell_ind[0]+1,ni-1); ++i) {
-               Vec3f sample_pos((i+0.5f)*dx, (j+0.5f)*dx,(k+0.5f)*dx);
-               float test_val = dist(sample_pos, particles[p]) - particle_radius;
-               if(test_val < liquid_phi(i,j,k))
-                  liquid_phi(i,j,k) = test_val;
+      Vec3i cell_ind(particles[p] / _dx);
+      for(int k = max(0,cell_ind[2] - 1); k <= min(cell_ind[2]+1,_ksize-1); ++k) {
+         for(int j = max(0,cell_ind[1] - 1); j <= min(cell_ind[1]+1,_jsize-1); ++j) {
+            for(int i = max(0,cell_ind[0] - 1); i <= min(cell_ind[0]+1,_isize-1); ++i) {
+               Vec3f sample_pos((i+0.5f)*_dx, (j+0.5f)*_dx,(k+0.5f)*_dx);
+               float test_val = dist(sample_pos, particles[p]) - _particle_radius;
+               if(test_val < _liquid_phi(i,j,k))
+                  _liquid_phi(i,j,k) = test_val;
             }
          }
       }
    }
    
    //extend phi slightly into solids (this is a simple, naive approach, but works reasonably well)
-   Array3f phi_temp = liquid_phi;
-   for(int k = 0; k < nk; ++k) {
-      for(int j = 0; j < nj; ++j) {
-         for(int i = 0; i < ni; ++i) {
-            if(liquid_phi(i,j,k) < 0.5*dx) {
-               float solid_phi_val = 0.125f*(nodal_solid_phi(i,j,k) + nodal_solid_phi(i+1,j,k) + nodal_solid_phi(i,j+1,k) + nodal_solid_phi(i+1,j+1,k)
-                  + nodal_solid_phi(i,j,k+1) + nodal_solid_phi(i+1,j,k+1) + nodal_solid_phi(i,j+1,k+1) + nodal_solid_phi(i+1,j+1,k+1));
+   Array3f phi_temp = _liquid_phi;
+   for(int k = 0; k < _ksize; ++k) {
+      for(int j = 0; j < _jsize; ++j) {
+         for(int i = 0; i < _isize; ++i) {
+            if(_liquid_phi(i,j,k) < 0.5*_dx) {
+               float solid_phi_val = 0.125f*(_nodal_solid_phi(i,j,k) + _nodal_solid_phi(i+1,j,k) + _nodal_solid_phi(i,j+1,k) + _nodal_solid_phi(i+1,j+1,k)
+                  + _nodal_solid_phi(i,j,k+1) + _nodal_solid_phi(i+1,j,k+1) + _nodal_solid_phi(i,j+1,k+1) + _nodal_solid_phi(i+1,j+1,k+1));
                if(solid_phi_val < 0)
-                  phi_temp(i,j,k) = -0.5f*dx;
+                  phi_temp(i,j,k) = -0.5f*_dx;
             }
          }
       }
    }
-   liquid_phi = phi_temp;
+   _liquid_phi = phi_temp;
    
 
 }
 
 
 
-void FluidSim::project(float dt) {
+void FluidSim::_project(float dt) {
 
    //Estimate the liquid signed distance
-   compute_phi();
+   _compute_phi();
    
    //Compute finite-volume type face area weight for each velocity sample.
-   compute_weights();
+   _compute_weights();
 
-   //Set up and solve the variational pressure solve.
-   solve_pressure(dt);
+   //Set up and solve the variational _pressure solve.
+   _solve_pressure(dt);
    
 }
 
 
 //Apply RK2 to advect a point in the domain.
-Vec3f FluidSim::trace_rk2(const Vec3f& position, float dt) {
+Vec3f FluidSim::_trace_rk2(const Vec3f& position, float dt) {
    Vec3f input = position;
-   Vec3f velocity = get_velocity(input);
-   velocity = get_velocity(input + 0.5f*dt*velocity);
+   Vec3f velocity = _get_velocity(input);
+   velocity = _get_velocity(input + 0.5f*dt*velocity);
    input += dt*velocity;
    return input;
 }
 
 //Interpolate velocity from the MAC grid.
-Vec3f FluidSim::get_velocity(const Vec3f& position) {
+Vec3f FluidSim::_get_velocity(const Vec3f& position) {
 
    //Interpolate the velocity from the u and v grids
-   float u_value = interpolate_value(position / dx - Vec3f(0, 0.5f, 0.5f), u);
-   float v_value = interpolate_value(position / dx - Vec3f(0.5f, 0, 0.5f), v);
-   float w_value = interpolate_value(position / dx - Vec3f(0.5f, 0.5f, 0), w);
+   float u_value = interpolate_value(position / _dx - Vec3f(0, 0.5f, 0.5f), _u);
+   float v_value = interpolate_value(position / _dx - Vec3f(0.5f, 0, 0.5f), _v);
+   float w_value = interpolate_value(position / _dx - Vec3f(0.5f, 0.5f, 0), _w);
 
    return Vec3f(u_value, v_value, w_value);
 }
@@ -325,177 +323,177 @@ Vec3f FluidSim::get_velocity(const Vec3f& position) {
 
 
 //Compute finite-volume style face-weights for fluid from nodal signed distances
-void FluidSim::compute_weights() {
+void FluidSim::_compute_weights() {
 
    //Compute face area fractions (using marching squares cases).
-   for(int k = 0; k < nk; ++k) for(int j = 0; j < nj; ++j) for(int i = 0; i < ni+1; ++i) {
-      u_weights(i,j,k) = 1 - fraction_inside(nodal_solid_phi(i,j,  k),
-                                             nodal_solid_phi(i,j+1,k),
-                                             nodal_solid_phi(i,j,  k+1),
-                                             nodal_solid_phi(i,j+1,k+1));
-      u_weights(i,j,k) = clamp(u_weights(i,j,k),0.0f,1.0f);
+   for(int k = 0; k < _ksize; ++k) for(int j = 0; j < _jsize; ++j) for(int i = 0; i < _isize+1; ++i) {
+      _u_weights(i,j,k) = 1 - fraction_inside(_nodal_solid_phi(i,j,  k),
+                                             _nodal_solid_phi(i,j+1,k),
+                                             _nodal_solid_phi(i,j,  k+1),
+                                             _nodal_solid_phi(i,j+1,k+1));
+      _u_weights(i,j,k) = clamp(_u_weights(i,j,k),0.0f,1.0f);
    }
-   for(int k = 0; k < nk; ++k) for(int j = 0; j < nj+1; ++j) for(int i = 0; i < ni; ++i) {
-      v_weights(i,j,k) = 1 - fraction_inside(nodal_solid_phi(i,  j,k),
-                                             nodal_solid_phi(i,  j,k+1),
-                                             nodal_solid_phi(i+1,j,k),
-                                             nodal_solid_phi(i+1,j,k+1));
-      v_weights(i,j,k) = clamp(v_weights(i,j,k),0.0f,1.0f);
+   for(int k = 0; k < _ksize; ++k) for(int j = 0; j < _jsize+1; ++j) for(int i = 0; i < _isize; ++i) {
+      _v_weights(i,j,k) = 1 - fraction_inside(_nodal_solid_phi(i,  j,k),
+                                             _nodal_solid_phi(i,  j,k+1),
+                                             _nodal_solid_phi(i+1,j,k),
+                                             _nodal_solid_phi(i+1,j,k+1));
+      _v_weights(i,j,k) = clamp(_v_weights(i,j,k),0.0f,1.0f);
    }
-   for(int k = 0; k < nk+1; ++k) for(int j = 0; j < nj; ++j) for(int i = 0; i < ni; ++i) {
-      w_weights(i,j,k) = 1 - fraction_inside(nodal_solid_phi(i,  j,  k),
-                                             nodal_solid_phi(i,  j+1,k),
-                                             nodal_solid_phi(i+1,j,  k),
-                                             nodal_solid_phi(i+1,j+1,k));
-      w_weights(i,j,k) = clamp(w_weights(i,j,k),0.0f,1.0f);
+   for(int k = 0; k < _ksize+1; ++k) for(int j = 0; j < _jsize; ++j) for(int i = 0; i < _isize; ++i) {
+      _w_weights(i,j,k) = 1 - fraction_inside(_nodal_solid_phi(i,  j,  k),
+                                             _nodal_solid_phi(i,  j+1,k),
+                                             _nodal_solid_phi(i+1,j,  k),
+                                             _nodal_solid_phi(i+1,j+1,k));
+      _w_weights(i,j,k) = clamp(_w_weights(i,j,k),0.0f,1.0f);
    }
 
 
 }
 
-//An implementation of the variational pressure projection solve for static geometry
-void FluidSim::solve_pressure(float dt) {
+//An implementation of the variational _pressure projection solve for static geometry
+void FluidSim::_solve_pressure(float dt) {
 
 
-   int ni = v.ni;
-   int nj = u.nj;
-   int nk = u.nk;
+   int _isize = _v.ni;
+   int _jsize = _u.nj;
+   int _ksize = _u.nk;
 
-   int system_size = ni*nj*nk;
-   if((int)rhs.size() != system_size) {
-      rhs.resize(system_size);
-      pressure.resize(system_size);
-      matrix.resize(system_size);
+   int system_size = _isize*_jsize*_ksize;
+   if((int)_rhs.size() != system_size) {
+      _rhs.resize(system_size);
+      _pressure.resize(system_size);
+      _matrix.resize(system_size);
    }
    
-   matrix.zero();
-   rhs.assign(rhs.size(), 0);
-   pressure.assign(pressure.size(), 0);
+   _matrix.zero();
+   _rhs.assign(_rhs.size(), 0);
+   _pressure.assign(_pressure.size(), 0);
 
-   //Build the linear system for pressure
-   for(int k = 1; k < nk-1; ++k) {
-      for(int j = 1; j < nj-1; ++j) {
-         for(int i = 1; i < ni-1; ++i) {
-            int index = i + ni*j + ni*nj*k;
+   //Build the linear system for _pressure
+   for(int k = 1; k < _ksize-1; ++k) {
+      for(int j = 1; j < _jsize-1; ++j) {
+         for(int i = 1; i < _isize-1; ++i) {
+            int index = i + _isize*j + _isize*_jsize*k;
 
-            rhs[index] = 0;
-            pressure[index] = 0;
-            float centre_phi = liquid_phi(i,j,k);
+            _rhs[index] = 0;
+            _pressure[index] = 0;
+            float centre_phi = _liquid_phi(i,j,k);
             if(centre_phi < 0) {
 
                //right neighbour
-               float term = u_weights(i+1,j,k) * dt / sqr(dx);
-               float right_phi = liquid_phi(i+1,j,k);
+               float term = _u_weights(i+1,j,k) * dt / sqr(_dx);
+               float right_phi = _liquid_phi(i+1,j,k);
                if(right_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index + 1, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index + 1, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, right_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] -= u_weights(i+1,j,k)*u(i+1,j,k) / dx;
+               _rhs[index] -= _u_weights(i+1,j,k)*_u(i+1,j,k) / _dx;
 
                //left neighbour
-               term = u_weights(i,j,k) * dt / sqr(dx);
-               float left_phi = liquid_phi(i-1,j,k);
+               term = _u_weights(i,j,k) * dt / sqr(_dx);
+               float left_phi = _liquid_phi(i-1,j,k);
                if(left_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index - 1, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index - 1, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, left_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] += u_weights(i,j,k)*u(i,j,k) / dx;
+               _rhs[index] += _u_weights(i,j,k)*_u(i,j,k) / _dx;
 
                //top neighbour
-               term = v_weights(i,j+1,k) * dt / sqr(dx);
-               float top_phi = liquid_phi(i,j+1,k);
+               term = _v_weights(i,j+1,k) * dt / sqr(_dx);
+               float top_phi = _liquid_phi(i,j+1,k);
                if(top_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index + ni, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index + _isize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, top_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] -= v_weights(i,j+1,k)*v(i,j+1,k) / dx;
+               _rhs[index] -= _v_weights(i,j+1,k)*_v(i,j+1,k) / _dx;
 
                //bottom neighbour
-               term = v_weights(i,j,k) * dt / sqr(dx);
-               float bot_phi = liquid_phi(i,j-1,k);
+               term = _v_weights(i,j,k) * dt / sqr(_dx);
+               float bot_phi = _liquid_phi(i,j-1,k);
                if(bot_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index - ni, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index - _isize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, bot_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] += v_weights(i,j,k)*v(i,j,k) / dx;
+               _rhs[index] += _v_weights(i,j,k)*_v(i,j,k) / _dx;
 
 
                //far neighbour
-               term = w_weights(i,j,k+1) * dt / sqr(dx);
-               float far_phi = liquid_phi(i,j,k+1);
+               term = _w_weights(i,j,k+1) * dt / sqr(_dx);
+               float far_phi = _liquid_phi(i,j,k+1);
                if(far_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index + ni*nj, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index + _isize*_jsize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, far_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] -= w_weights(i,j,k+1)*w(i,j,k+1) / dx;
+               _rhs[index] -= _w_weights(i,j,k+1)*_w(i,j,k+1) / _dx;
 
                //near neighbour
-               term = w_weights(i,j,k) * dt / sqr(dx);
-               float near_phi = liquid_phi(i,j,k-1);
+               term = _w_weights(i,j,k) * dt / sqr(_dx);
+               float near_phi = _liquid_phi(i,j,k-1);
                if(near_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index - ni*nj, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index - _isize*_jsize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, near_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] += w_weights(i,j,k)*w(i,j,k) / dx;
+               _rhs[index] += _w_weights(i,j,k)*_w(i,j,k) / _dx;
 
                /*
                //far neighbour
-               term = w_weights(i,j,k+1) * dt / sqr(dx);
-               float far_phi = liquid_phi(i,j,k+1);
+               term = _w_weights(i,j,k+1) * dt / sqr(_dx);
+               float far_phi = _liquid_phi(i,j,k+1);
                if(far_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index + ni*nj, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index + ni*_jsize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, far_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] -= w_weights(i,j,k+1)*w(i,j,k+1) / dx;
+               _rhs[index] -= _w_weights(i,j,k+1)*w(i,j,k+1) / _dx;
 
                //near neighbour
-               term = w_weights(i,j,k) * dt / sqr(dx);
-               float near_phi = liquid_phi(i,j,k-1);
+               term = _w_weights(i,j,k) * dt / sqr(_dx);
+               float near_phi = _liquid_phi(i,j,k-1);
                if(near_phi < 0) {
-                  matrix.add_to_element(index, index, term);
-                  matrix.add_to_element(index, index - ni*nj, -term);
+                  _matrix.add_to_element(index, index, term);
+                  _matrix.add_to_element(index, index - ni*_jsize, -term);
                }
                else {
                   float theta = fraction_inside(centre_phi, near_phi);
                   if(theta < 0.01f) theta = 0.01f;
-                  matrix.add_to_element(index, index, term/theta);
+                  _matrix.add_to_element(index, index, term/theta);
                }
-               rhs[index] += w_weights(i,j,k)*w(i,j,k) / dx;   
+               _rhs[index] += _w_weights(i,j,k)*w(i,j,k) / _dx;   
                */
 
             }
@@ -507,62 +505,62 @@ void FluidSim::solve_pressure(float dt) {
 
    double tolerance;
    int iterations;
-   solver.set_solver_parameters(1e-18, 1000);
-   bool success = solver.solve(matrix, rhs, pressure, tolerance, iterations);
+   _solver.set_solver_parameters(1e-18, 1000);
+   bool success = _solver.solve(_matrix, _rhs, _pressure, tolerance, iterations);
    //printf("Solver took %d iterations and had residual %e\n", iterations, tolerance);
    if(!success) {
-      printf("WARNING: Pressure solve failed!************************************************\n");
+      printf("WARNING: _pressure solve failed!************************************************\n");
    }
 
    //Apply the velocity update
-   u_valid.assign(0);
-   for(int k = 0; k < u.nk; ++k) for(int j = 0; j < u.nj; ++j) for(int i = 1; i < u.ni-1; ++i) {
-      int index = i + j*ni + k*ni*nj;
-      if(u_weights(i,j,k) > 0 && (liquid_phi(i,j,k) < 0 || liquid_phi(i-1,j,k) < 0)) {
+   _u_valid.assign(0);
+   for(int k = 0; k < _u.nk; ++k) for(int j = 0; j < _u.nj; ++j) for(int i = 1; i < _u.ni-1; ++i) {
+      int index = i + j*_isize + k*_isize*_jsize;
+      if(_u_weights(i,j,k) > 0 && (_liquid_phi(i,j,k) < 0 || _liquid_phi(i-1,j,k) < 0)) {
          float theta = 1;
-         if(liquid_phi(i,j,k) >= 0 || liquid_phi(i-1,j,k) >= 0)
-            theta = fraction_inside(liquid_phi(i-1,j,k), liquid_phi(i,j,k));
+         if(_liquid_phi(i,j,k) >= 0 || _liquid_phi(i-1,j,k) >= 0)
+            theta = fraction_inside(_liquid_phi(i-1,j,k), _liquid_phi(i,j,k));
          if(theta < 0.01f) theta = 0.01f;
-         u(i,j,k) -= dt  * (float)(pressure[index] - pressure[index-1]) / dx / theta; 
-         u_valid(i,j,k) = 1;
+         _u(i,j,k) -= dt  * (float)(_pressure[index] - _pressure[index-1]) / _dx / theta; 
+         _u_valid(i,j,k) = 1;
       }
    }
    
-   v_valid.assign(0);
-   for(int k = 0; k < v.nk; ++k) for(int j = 1; j < v.nj-1; ++j) for(int i = 0; i < v.ni; ++i) {
-      int index = i + j*ni + k*ni*nj;
-      if(v_weights(i,j,k) > 0 && (liquid_phi(i,j,k) < 0 || liquid_phi(i,j-1,k) < 0)) {
+   _v_valid.assign(0);
+   for(int k = 0; k < _v.nk; ++k) for(int j = 1; j < _v.nj-1; ++j) for(int i = 0; i < _v.ni; ++i) {
+      int index = i + j*_isize + k*_isize*_jsize;
+      if(_v_weights(i,j,k) > 0 && (_liquid_phi(i,j,k) < 0 || _liquid_phi(i,j-1,k) < 0)) {
          float theta = 1;
-         if(liquid_phi(i,j,k) >= 0 || liquid_phi(i,j-1,k) >= 0)
-            theta = fraction_inside(liquid_phi(i,j-1,k), liquid_phi(i,j,k));
+         if(_liquid_phi(i,j,k) >= 0 || _liquid_phi(i,j-1,k) >= 0)
+            theta = fraction_inside(_liquid_phi(i,j-1,k), _liquid_phi(i,j,k));
          if(theta < 0.01f) theta = 0.01f;
-         v(i,j,k) -= dt  * (float)(pressure[index] - pressure[index-ni]) / dx / theta; 
-         v_valid(i,j,k) = 1;
+         _v(i,j,k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize]) / _dx / theta; 
+         _v_valid(i,j,k) = 1;
       }
    }
 
-   w_valid.assign(0);
-   for(int k = 0; k < w.nk; ++k) for(int j = 0; j < w.nj; ++j) for(int i = 1; i < w.ni-1; ++i) {
-      int index = i + j*ni + k*ni*nj;
-      if(w_weights(i,j,k) > 0 && (liquid_phi(i,j,k) < 0 || liquid_phi(i,j,k-1) < 0)) {
+   _w_valid.assign(0);
+   for(int k = 0; k < _w.nk; ++k) for(int j = 0; j < _w.nj; ++j) for(int i = 1; i < _w.ni-1; ++i) {
+      int index = i + j*_isize + k*_isize*_jsize;
+      if(_w_weights(i,j,k) > 0 && (_liquid_phi(i,j,k) < 0 || _liquid_phi(i,j,k-1) < 0)) {
          float theta = 1;
-         if(liquid_phi(i,j,k) >= 0 || liquid_phi(i,j,k-1) >= 0)
-            theta = fraction_inside(liquid_phi(i,j,k-1), liquid_phi(i,j,k));
+         if(_liquid_phi(i,j,k) >= 0 || _liquid_phi(i,j,k-1) >= 0)
+            theta = fraction_inside(_liquid_phi(i,j,k-1), _liquid_phi(i,j,k));
          if(theta < 0.01f) theta = 0.01f;
-         w(i,j,k) -= dt  * (float)(pressure[index] - pressure[index-ni*nj]) / dx / theta; 
-         w_valid(i,j,k) = 1;
+         _w(i,j,k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize*_jsize]) / _dx / theta; 
+         _w_valid(i,j,k) = 1;
       }
    }
  
-   for(unsigned int i = 0; i < u_valid.a.size(); ++i)
-      if(u_valid.a[i] == 0)
-         u.a[i] = 0;
-   for(unsigned int i = 0; i < v_valid.a.size(); ++i)
-      if(v_valid.a[i] == 0)
-         v.a[i] = 0;
-   for(unsigned int i = 0; i < w_valid.a.size(); ++i)
-      if(w_valid.a[i] == 0)
-         w.a[i] = 0;
+   for(unsigned int i = 0; i < _u_valid.a.size(); ++i)
+      if(_u_valid.a[i] == 0)
+         _u.a[i] = 0;
+   for(unsigned int i = 0; i < _v_valid.a.size(); ++i)
+      if(_v_valid.a[i] == 0)
+         _v.a[i] = 0;
+   for(unsigned int i = 0; i < _w_valid.a.size(); ++i)
+      if(_w_valid.a[i] == 0)
+         _w.a[i] = 0;
 }
 
 
