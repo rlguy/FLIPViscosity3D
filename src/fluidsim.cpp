@@ -22,9 +22,9 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _temp_v.resize(_isize, _jsize + 1, _ksize); 
     _temp_w.resize(_isize, _jsize, _ksize + 1); 
 
-    _u_weights.resize(_isize + 1, _jsize, _ksize); 
-    _v_weights.resize(_isize, _jsize + 1, _ksize); 
-    _w_weights.resize(_isize, _jsize, _ksize + 1); 
+    _u_weights = Array3d<float>(_isize + 1, _jsize, _ksize); 
+    _v_weights = Array3d<float>(_isize, _jsize + 1, _ksize); 
+    _w_weights = Array3d<float>(_isize, _jsize, _ksize + 1); 
 
     _u_valid.resize(_isize + 1, _jsize, _ksize);
     _v_valid.resize(_isize, _jsize + 1, _ksize); 
@@ -386,11 +386,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                _u_weights(i, j, k) = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                          _nodal_solid_phi(i, j + 1, k),
-                                                          _nodal_solid_phi(i, j, k + 1),
-                                                          _nodal_solid_phi(i, j + 1, k + 1));
-                _u_weights(i,j,k) = clamp(_u_weights(i, j, k), 0.0f, 1.0f);
+                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
+                                                   _nodal_solid_phi(i, j + 1, k),
+                                                   _nodal_solid_phi(i, j, k + 1),
+                                                   _nodal_solid_phi(i, j + 1, k + 1));
+                _u_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
             }
         }
     }
@@ -398,11 +398,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                _v_weights(i, j, k) = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                          _nodal_solid_phi(i, j, k + 1),
-                                                          _nodal_solid_phi(i + 1, j, k),
-                                                          _nodal_solid_phi(i + 1, j, k + 1));
-                _v_weights(i, j, k) = clamp(_v_weights(i, j, k), 0.0f, 1.0f);
+                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
+                                                   _nodal_solid_phi(i, j, k + 1),
+                                                   _nodal_solid_phi(i + 1, j, k),
+                                                   _nodal_solid_phi(i + 1, j, k + 1));
+                _v_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
             }
         }
     }
@@ -410,11 +410,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
-                _w_weights(i, j, k) = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                          _nodal_solid_phi(i, j + 1, k),
-                                                          _nodal_solid_phi(i + 1, j, k),
-                                                          _nodal_solid_phi(i + 1, j + 1, k));
-                _w_weights(i, j, k) = clamp(_w_weights(i, j, k), 0.0f, 1.0f);
+                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
+                                                   _nodal_solid_phi(i, j + 1, k),
+                                                   _nodal_solid_phi(i + 1, j, k),
+                                                   _nodal_solid_phi(i + 1, j + 1, k));
+                _w_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
             }
         }
     }

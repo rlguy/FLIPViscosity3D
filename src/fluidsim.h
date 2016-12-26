@@ -54,7 +54,7 @@ private:
     
     //Static geometry representation
     Array3d<float> _nodal_solid_phi;
-    Array3f _u_weights, _v_weights, _w_weights;
+    Array3d<float> _u_weights, _v_weights, _w_weights;
     Array3c _u_valid, _v_valid, _w_valid;
 
     float _particle_radius;
