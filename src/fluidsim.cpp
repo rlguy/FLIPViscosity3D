@@ -11,16 +11,8 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _ksize = k;
     _dx = width / (float)_isize;
 
-    _u.resize(_isize + 1, _jsize, _ksize); 
-    _v.resize(_isize, _jsize + 1, _ksize); 
-    _w.resize(_isize, _jsize, _ksize + 1);
-    _u.set_zero();
-    _v.set_zero();
-    _w.set_zero();
-
-    _temp_u.resize(_isize + 1, _jsize, _ksize); 
-    _temp_v.resize(_isize, _jsize + 1, _ksize); 
-    _temp_w.resize(_isize, _jsize, _ksize + 1); 
+    _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
+    _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
 
     _u_weights = Array3d<float>(_isize + 1, _jsize, _ksize); 
     _v_weights = Array3d<float>(_isize, _jsize + 1, _ksize); 
@@ -106,9 +98,12 @@ void FluidSim::advance(float dt) {
         //Because the advection step may interpolate from these invalid faces, 
         //we must extrapolate velocities from the fluid domain into these invalid faces.
         printf(" Extrapolation\n");
-        _extrapolate(_u, _u_valid);
-        _extrapolate(_v, _v_valid);
-        _extrapolate(_w, _w_valid);
+        Array3d<float> *ugrid = _MACVelocity.getArray3dU();
+        Array3d<float> *vgrid = _MACVelocity.getArray3dV();
+        Array3d<float> *wgrid = _MACVelocity.getArray3dW();
+        _extrapolate(ugrid, _u_valid);
+        _extrapolate(vgrid, _v_valid);
+        _extrapolate(wgrid, _w_valid);
      
         //For extrapolated velocities, replace the normal component with
         //that of the object.
@@ -123,14 +118,28 @@ void FluidSim::advance(float dt) {
 float FluidSim::_cfl() {
 
     float maxvel = 0;
-    for(unsigned int i = 0; i < _u.a.size(); i++) {
-        maxvel = fmax(maxvel, fabs(_u.a[i]));
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                maxvel = fmax(maxvel, fabs(_MACVelocity.U(i, j, k)));
+            }
+        }
     }
-    for(unsigned int i = 0; i < _v.a.size(); i++) {
-        maxvel = fmax(maxvel, fabs(_v.a[i]));
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                maxvel = fmax(maxvel, fabs(_MACVelocity.V(i, j, k)));
+            }
+        }
     }
-    for(unsigned int i = 0; i < _w.a.size(); i++) {
-        maxvel = fmax(maxvel, fabs(_w.a[i]));
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                maxvel = fmax(maxvel, fabs(_MACVelocity.W(i, j, k)));
+            }
+        }
     }
     
     return 5*_dx / maxvel;
@@ -146,7 +155,8 @@ void FluidSim::_add_force(float dt) {
     for(int k = 0;k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                _v(i, j, k) -= 9.81f * dt;
+                double v = _MACVelocity.V(i, j, k);
+                _MACVelocity.setV(i, j, k, v - 9.81f * dt);
             }
         }
     }
@@ -158,18 +168,38 @@ void FluidSim::_add_force(float dt) {
 //For extrapolated points, replace the normal component
 //of velocity with the object velocity (in this case zero).
 void FluidSim::_constrain_velocity() {
-    _temp_u = _u;
-    _temp_v = _v;
-    _temp_w = _w;
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                _tempMACVelocity.setU(i, j, k, _MACVelocity.U(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                _tempMACVelocity.setV(i, j, k, _MACVelocity.V(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                _tempMACVelocity.setW(i, j, k, _MACVelocity.W(i, j, k));
+            }
+        }
+    }
 
     //(At lower grid resolutions, the normal estimate from the signed
     //distance function can be poor, so it doesn't work quite as well.
     //An exact normal would do better if we had it for the geometry.)
 
     //constrain u
-    for(int k = 0; k < _u.nk; k++) {
-        for(int j = 0; j < _u.nj; j++) { 
-            for(int i = 0; i < _u.ni; i++) {
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
                 if(_u_weights(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
@@ -179,16 +209,16 @@ void FluidSim::_constrain_velocity() {
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
-                    _temp_u(i, j, k) = vel[0];
+                    _tempMACVelocity.setU(i, j, k, vel.x);
                 }
             }
         }
     }
 
     //constrain v
-    for(int k = 0; k < _v.nk; k++) {
-        for(int j = 0; j < _v.nj; j++) { 
-            for(int i = 0; i < _v.ni; i++) {
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
                 if(_v_weights(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
@@ -198,16 +228,16 @@ void FluidSim::_constrain_velocity() {
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
-                    _temp_v(i, j, k) = vel[1];
+                    _tempMACVelocity.setV(i, j, k, vel.y);
                 }
             }
         }
     }
 
     //constrain w
-    for(int k = 0; k < _w.nk; k++) {
-        for(int j = 0; j < _w.nj; j++) {
-            for(int i = 0; i < _w.ni; i++) {
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
                 if(_w_weights(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
@@ -217,16 +247,36 @@ void FluidSim::_constrain_velocity() {
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
-                    _temp_w(i, j, k) = vel[2];
+                    _tempMACVelocity.setW(i, j, k, vel.z);
                 }
             }
         }
     }
 
     //update
-    _u = _temp_u;
-    _v = _temp_v;
-    _w = _temp_w;
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                _MACVelocity.setU(i, j, k, _tempMACVelocity.U(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                _MACVelocity.setV(i, j, k, _tempMACVelocity.V(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                _MACVelocity.setW(i, j, k, _tempMACVelocity.W(i, j, k));
+            }
+        }
+    }
 
 }
 
@@ -252,9 +302,7 @@ void FluidSim::_advect_particles(float dt) {
 //Basic first order semi-Lagrangian advection of velocities
 void FluidSim::_advect(float dt) {
 
-    _temp_u.assign(0);
-    _temp_v.assign(0);
-    _temp_w.assign(0);
+    _tempMACVelocity.clear();
 
     //semi-Lagrangian advection on u-component of velocity
     for(int k = 0; k < _ksize; k++) {
@@ -262,7 +310,7 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize + 1; i++) {
                 vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
                 pos = _trace_rk2(pos, -dt);
-                _temp_u(i, j, k) = _get_velocity(pos)[0];  
+                _tempMACVelocity.setU(i, j, k, _get_velocity(pos).x);  
             }
         }
     }
@@ -273,7 +321,7 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize; i++) {
                 vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
                 pos = _trace_rk2(pos, -dt);
-                _temp_v(i, j, k) = _get_velocity(pos)[1];
+                _tempMACVelocity.setV(i, j, k, _get_velocity(pos).y);
             }
         }
     }
@@ -284,15 +332,35 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize; i++) {
                 vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
                 pos = _trace_rk2(pos, -dt);
-                _temp_w(i, j, k) = _get_velocity(pos)[2];
+                _tempMACVelocity.setW(i, j, k, _get_velocity(pos).z);
             }
         }
     }
 
     //move update velocities into u/v vectors
-    _u = _temp_u;
-    _v = _temp_v;
-    _w = _temp_w;
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                _MACVelocity.setU(i, j, k, _tempMACVelocity.U(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                _MACVelocity.setV(i, j, k, _tempMACVelocity.V(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                _MACVelocity.setW(i, j, k, _tempMACVelocity.W(i, j, k));
+            }
+        }
+    }
 }
 
 void FluidSim::_compute_phi() {
@@ -370,9 +438,9 @@ vmath::vec3 FluidSim::_trace_rk2(vmath::vec3 position, float dt) {
 vmath::vec3 FluidSim::_get_velocity(vmath::vec3 position) {
 
     //Interpolate the velocity from the u and v grids
-    float u_value = interpolate_value(position / _dx - vmath::vec3(0, 0.5f, 0.5f), _u);
-    float v_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0, 0.5f), _v);
-    float w_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0.5f, 0), _w);
+    float u_value = interpolate_value(position / _dx - vmath::vec3(0, 0.5f, 0.5f), *(_MACVelocity.getArray3dU()));
+    float v_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0, 0.5f), *(_MACVelocity.getArray3dV()));
+    float w_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0.5f, 0), *(_MACVelocity.getArray3dW()));
 
     return vmath::vec3(u_value, v_value, w_value);
 }
@@ -461,7 +529,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term / theta);
                 }
-                _rhs[index] -= _u_weights(i + 1, j, k) * _u(i + 1, j, k) / _dx;
+                _rhs[index] -= _u_weights(i + 1, j, k) * _MACVelocity.U(i + 1, j, k) / _dx;
 
                 //left neighbour
                 term = _u_weights(i, j, k) * dt / sqr(_dx);
@@ -476,7 +544,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term / theta);
                 }
-                _rhs[index] += _u_weights(i, j, k) * _u(i, j, k) / _dx;
+                _rhs[index] += _u_weights(i, j, k) * _MACVelocity.U(i, j, k) / _dx;
 
                 //top neighbour
                 term = _v_weights(i, j + 1, k) * dt / sqr(_dx);
@@ -491,7 +559,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term/theta);
                 }
-                _rhs[index] -= _v_weights(i, j + 1, k) * _v(i, j + 1, k) / _dx;
+                _rhs[index] -= _v_weights(i, j + 1, k) * _MACVelocity.V(i, j + 1, k) / _dx;
 
                 //bottom neighbour
                 term = _v_weights(i, j, k) * dt / sqr(_dx);
@@ -506,7 +574,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term / theta);
                 }
-                _rhs[index] += _v_weights(i, j, k) * _v(i, j, k) / _dx;
+                _rhs[index] += _v_weights(i, j, k) * _MACVelocity.V(i, j, k) / _dx;
 
 
                 //far neighbour
@@ -522,7 +590,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term / theta);
                 }
-                _rhs[index] -= _w_weights(i, j, k + 1) * _w(i, j, k + 1) / _dx;
+                _rhs[index] -= _w_weights(i, j, k + 1) * _MACVelocity.W(i, j, k + 1) / _dx;
 
                 //near neighbour
                 term = _w_weights(i, j, k) * dt / sqr(_dx);
@@ -537,7 +605,7 @@ void FluidSim::_solve_pressure(float dt) {
                     }
                     _matrix.add_to_element(index, index, term / theta);
                 }
-                _rhs[index] += _w_weights(i, j, k) * _w(i, j, k) / _dx;
+                _rhs[index] += _w_weights(i, j, k) * _MACVelocity.W(i, j, k) / _dx;
             }
         }
     }
@@ -555,9 +623,9 @@ void FluidSim::_solve_pressure(float dt) {
 
     //Apply the velocity update
     _u_valid.fill(false);
-    for(int k = 0; k < _u.nk; k++) {
-        for(int j = 0; j < _u.nj; j++) {
-            for(int i = 1; i < _u.ni - 1; i++) {
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 1; i < _isize; i++) {
 
                 int index = i + j*_isize + k*_isize*_jsize;
                 if(_u_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
@@ -568,7 +636,8 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    _u(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-1]) / _dx / theta; 
+                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-1]) / _dx / theta;
+                    _MACVelocity.setU(i, j, k, v);
                     _u_valid.set(i, j, k, true);
                 }
 
@@ -577,9 +646,9 @@ void FluidSim::_solve_pressure(float dt) {
     }
     
     _v_valid.fill(false);
-    for(int k = 0; k < _v.nk; k++) {
-        for(int j = 1; j < _v.nj - 1; j++) {
-            for(int i = 0; i < _v.ni; i++) {
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 1; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
 
                 int index = i + j*_isize + k*_isize*_jsize;
                 if(_v_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
@@ -590,7 +659,8 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    _v(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize]) / _dx / theta; 
+                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-_isize]) / _dx / theta;
+                    _MACVelocity.setV(i, j, k, v);
                     _v_valid.set(i, j, k, true);
                 }
 
@@ -599,9 +669,9 @@ void FluidSim::_solve_pressure(float dt) {
     }
 
     _w_valid.fill(false);
-    for(int k = 0; k < _w.nk; ++k) {
-        for(int j = 0; j < _w.nj; ++j) {
-            for(int i = 1; i < _w.ni-1; ++i) {
+    for(int k = 0; k < _ksize; ++k) {
+        for(int j = 0; j < _jsize; ++j) {
+            for(int i = 1; i < _isize; ++i) {
 
                 int index = i + j*_isize + k*_isize*_jsize;
                 if(_w_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
@@ -612,7 +682,8 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    _w(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize*_jsize]) / _dx / theta; 
+                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-_isize*_jsize]) / _dx / theta;
+                    _MACVelocity.setW(i, j, k, v);
                     _w_valid.set(i, j, k, true);
                 }
 
@@ -624,7 +695,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
                 if(!_u_valid(i, j, k)) {
-                    _u(i, j, k) = 0;
+                    _MACVelocity.setU(i, j, k, 0.0);
                 }
             }
         }
@@ -634,7 +705,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
                 if(!_v_valid(i, j, k)) {
-                    _v(i, j, k) = 0;
+                    _MACVelocity.setV(i, j, k, 0.0);
                 }
             }
         }
@@ -644,7 +715,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if(!_w_valid(i, j, k)) {
-                    _w(i, j, k) = 0;
+                    _MACVelocity.setW(i, j, k, 0.0);
                 }
             }
         }
@@ -653,16 +724,24 @@ void FluidSim::_solve_pressure(float dt) {
 
 
 //Apply several iterations of a very simple propagation of valid velocity data in all directions
-void FluidSim::_extrapolate(Array3f& grid, Array3d<bool> &valid) {
+void FluidSim::_extrapolate(Array3d<float> *grid, Array3d<bool> &valid) {
 
-    Array3f temp_grid = grid;
+    Array3d<float> temp_grid(grid->width, grid->height, grid->depth);
+    for(int k = 0; k < grid->depth; k++) {
+        for(int j = 0; j < grid->height; j++) {
+            for(int i = 0; i < grid->width; i++) {
+                temp_grid.set(i, j, k, grid->get(i, j, k));
+            }
+        }
+    }
+
     Array3d<bool> old_valid;
     for(int layers = 0; layers < 10; layers++) {
 
         old_valid = valid;
-        for(int k = 1; k < grid.nk - 1; k++) {
-            for(int j = 1; j < grid.nj - 1; j++) {
-                for(int i = 1; i < grid.ni - 1; i++) {
+        for(int k = 1; k < grid->depth - 1; k++) {
+            for(int j = 1; j < grid->height - 1; j++) {
+                for(int i = 1; i < grid->width - 1; i++) {
 
                     if(old_valid(i,j,k)) {
                         continue;
@@ -671,41 +750,48 @@ void FluidSim::_extrapolate(Array3f& grid, Array3d<bool> &valid) {
                     float sum = 0;
                     int count = 0;
                     if(old_valid(i + 1, j, k)) {
-                        sum += grid(i + 1, j, k);
+                        sum += grid->get(i + 1, j, k);
                         count++;
                     }
                     if(old_valid(i - 1, j, k)) {
-                        sum += grid(i - 1, j, k);
+                        sum += grid->get(i - 1, j, k);
                         count++;
                     }
                     if(old_valid(i, j + 1, k)) {
-                        sum += grid(i, j + 1, k);
+                        sum += grid->get(i, j + 1, k);
                         count++;
                     }
                     if(old_valid(i, j - 1, k)) {
-                        sum += grid(i, j - 1, k);
+                        sum += grid->get(i, j - 1, k);
                         count++;
                     }
                     if(old_valid(i, j, k + 1)) {
-                        sum += grid(i, j, k + 1);
+                        sum += grid->get(i, j, k + 1);
                         count++;
                     }
                     if(old_valid(i, j, k - 1)) {
-                        sum += grid(i, j, k - 1);
+                        sum += grid->get(i, j, k - 1);
                         count++;
                     }
 
                     //If any of neighbour cells were valid, 
                     //assign the cell their average value and tag it as valid
                     if(count > 0) {
-                        temp_grid(i, j, k) = sum /(float)count;
+                        temp_grid.set(i, j, k, sum /(float)count);
                         valid.set(i, j, k, true);
                     }
 
                 }
             }
         }
-        grid = temp_grid;
+
+        for(int k = 0; k < grid->depth; k++) {
+            for(int j = 0; j < grid->height; j++) {
+                for(int i = 0; i < grid->width; i++) {
+                    grid->set(i, j, k, temp_grid(i, j, k));
+                }
+            }
+        }
 
     }
 

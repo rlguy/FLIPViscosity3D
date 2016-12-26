@@ -256,15 +256,15 @@ inline unsigned int unhash(unsigned int h)
 
 // returns repeatable stateless pseudo-random number in [0,1]
 inline double randhashd(unsigned int seed)
-{ return randhash(seed)/(double)UINT_MAX; }
+{ return randhash(seed)/(double)std::numeric_limits<unsigned int>::max(); }
 inline float randhashf(unsigned int seed)
-{ return randhash(seed)/(float)UINT_MAX; }
+{ return randhash(seed)/(float)std::numeric_limits<unsigned int>::max(); }
 
 // returns repeatable stateless pseudo-random number in [a,b]
 inline double randhashd(unsigned int seed, double a, double b)
-{ return (b-a)*randhash(seed)/(double)UINT_MAX + a; }
+{ return (b-a)*randhash(seed)/(double)std::numeric_limits<unsigned int>::max() + a; }
 inline float randhashf(unsigned int seed, float a, float b)
-{ return ( (b-a)*randhash(seed)/(float)UINT_MAX + a); }
+{ return ( (b-a)*randhash(seed)/(float)std::numeric_limits<unsigned int>::max() + a); }
 
 inline int intlog2(int x)
 {

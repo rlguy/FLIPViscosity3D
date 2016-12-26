@@ -1,13 +1,13 @@
 #ifndef FLUIDSIM_H
 #define FLUIDSIM_H
 
-#include "array3.h"
 #include "pcgsolver/sparse_matrix.h"
 #include "pcgsolver/pcg_solver.h"
 
 #include "vmath.h"
 #include "array3d.h"
 #include "grid3d.h"
+#include "macvelocityfield.h"
 
 #include <vector>
 
@@ -35,7 +35,7 @@ private:
     void _add_force(float dt);
     void _project(float dt);
     void _constrain_velocity();
-    void _extrapolate(Array3f& grid, Array3d<bool> &valid);
+    void _extrapolate(Array3d<float> *grid, Array3d<bool> &valid);
 
     //helpers for pressure projection
     void _compute_weights();
@@ -49,8 +49,8 @@ private:
     float _dx;
     
     //Fluid velocity
-    Array3f _u, _v, _w;
-    Array3f _temp_u, _temp_v, _temp_w;
+    MACVelocityField _MACVelocity;
+    MACVelocityField _tempMACVelocity;
     
     //Static geometry representation
     Array3d<float> _nodal_solid_phi;
