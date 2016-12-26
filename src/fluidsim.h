@@ -59,7 +59,7 @@ private:
 
     float _particle_radius;
 
-    Array3f _liquid_phi;
+    Array3d<float> _liquid_phi;
 
     //Solver data
     PCGSolver<double> _solver;

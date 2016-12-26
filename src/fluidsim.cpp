@@ -34,7 +34,7 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     //make the particles large enough so they always appear on the grid
 
     _nodal_solid_phi.resize(_isize + 1, _jsize + 1, _ksize + 1);
-    _liquid_phi.resize(_isize, _jsize, _ksize);
+    _liquid_phi = Array3d<float>(_isize, _jsize, _ksize);
 }
 
 //Initialize the grid-based signed distance field that dictates the position of the solid boundary
@@ -298,7 +298,7 @@ void FluidSim::_advect(float dt) {
 void FluidSim::_compute_phi() {
     
     //grab from particles
-    _liquid_phi.assign(3*_dx);
+    _liquid_phi.fill(3*_dx);
     for(unsigned int p = 0; p < particles.size(); ++p) {
 
         GridIndex cell_ind = Grid3d::positionToGridIndex(particles[p], _dx);
@@ -308,7 +308,7 @@ void FluidSim::_compute_phi() {
                     vmath::vec3 sample_pos((i+0.5f)*_dx, (j+0.5f)*_dx,(k+0.5f)*_dx);
                     float test_val = vmath::length(sample_pos - particles[p]) - _particle_radius;
                     if(test_val < _liquid_phi(i, j, k)) {
-                        _liquid_phi(i, j, k) = test_val;
+                        _liquid_phi.set(i, j, k, test_val);
                     }
                 }
             }
@@ -317,7 +317,7 @@ void FluidSim::_compute_phi() {
     }
     
     //extend phi slightly into solids (this is a simple, naive approach, but works reasonably well)
-    Array3f phi_temp = _liquid_phi;
+    Array3d<float> phi_temp = _liquid_phi;
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
@@ -331,7 +331,7 @@ void FluidSim::_compute_phi() {
                                                   _nodal_solid_phi(i, j + 1, k + 1) + 
                                                   _nodal_solid_phi(i + 1, j + 1, k + 1));
                     if(solid_phi_val < 0) {
-                        phi_temp(i,j,k) = -0.5f * _dx;
+                        phi_temp.set(i, j, k, -0.5f * _dx);
                     }
                 }
             }

@@ -55,8 +55,6 @@ struct GridIndex {
     }
 };
 
-/*
-
 template <class T>
 class Array3d
 {
@@ -417,6 +415,5 @@ private:
     T _outOfRangeValue;
     int _numElements = 0;
 };
-*/
 
 #endif

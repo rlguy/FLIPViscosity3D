@@ -258,7 +258,7 @@ struct Array3
 
 // some common arrays
 
-typedef Array3<double, Array1<double> > Array3d;
+//typedef Array3<double, Array1<double> > Array3d;
 typedef Array3<float, Array1<float> > Array3f;
 typedef Array3<long long, Array1<long long> > Array3ll;
 typedef Array3<unsigned long long, Array1<unsigned long long> > Array3ull;
