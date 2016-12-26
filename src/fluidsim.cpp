@@ -33,7 +33,7 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     //make the particles large enough so they always appear on the grid
 
-    _nodal_solid_phi.resize(_isize + 1, _jsize + 1, _ksize + 1);
+    _nodal_solid_phi = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1);
     _liquid_phi = Array3d<float>(_isize, _jsize, _ksize);
 }
 
@@ -44,7 +44,7 @@ void FluidSim::set_boundary(float (*phi)(vmath::vec3)) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize + 1; i++) {
                 vmath::vec3 pos(i * _dx, j * _dx, k * _dx);
-                _nodal_solid_phi(i,j,k) = phi(pos);
+                _nodal_solid_phi.set(i, j, k, phi(pos));
             }
         }
     }

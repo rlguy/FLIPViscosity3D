@@ -6,7 +6,6 @@
 #include <cfloat>
 
 #include "fluidsim.h"
-#include "array3_utils.h"
 #include "trianglemesh.h"
 
 using namespace std;

@@ -53,7 +53,7 @@ private:
     Array3f _temp_u, _temp_v, _temp_w;
     
     //Static geometry representation
-    Array3f _nodal_solid_phi;
+    Array3d<float> _nodal_solid_phi;
     Array3f _u_weights, _v_weights, _w_weights;
     Array3c _u_valid, _v_valid, _w_valid;
 
