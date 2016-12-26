@@ -26,9 +26,9 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _v_weights = Array3d<float>(_isize, _jsize + 1, _ksize); 
     _w_weights = Array3d<float>(_isize, _jsize, _ksize + 1); 
 
-    _u_valid.resize(_isize + 1, _jsize, _ksize);
-    _v_valid.resize(_isize, _jsize + 1, _ksize); 
-    _w_valid.resize(_isize, _jsize, _ksize + 1);
+    _u_valid = Array3d<bool>(_isize + 1, _jsize, _ksize);
+    _v_valid = Array3d<bool>(_isize, _jsize + 1, _ksize); 
+    _w_valid = Array3d<bool>(_isize, _jsize, _ksize + 1);
 
     _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     //make the particles large enough so they always appear on the grid
@@ -554,7 +554,7 @@ void FluidSim::_solve_pressure(float dt) {
     }
 
     //Apply the velocity update
-    _u_valid.assign(0);
+    _u_valid.fill(false);
     for(int k = 0; k < _u.nk; k++) {
         for(int j = 0; j < _u.nj; j++) {
             for(int i = 1; i < _u.ni - 1; i++) {
@@ -569,14 +569,14 @@ void FluidSim::_solve_pressure(float dt) {
                         theta = 0.01f;
                     }
                     _u(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-1]) / _dx / theta; 
-                    _u_valid(i, j, k) = 1;
+                    _u_valid.set(i, j, k, true);
                 }
 
             }
         }
     }
     
-    _v_valid.assign(0);
+    _v_valid.fill(false);
     for(int k = 0; k < _v.nk; k++) {
         for(int j = 1; j < _v.nj - 1; j++) {
             for(int i = 0; i < _v.ni; i++) {
@@ -591,14 +591,14 @@ void FluidSim::_solve_pressure(float dt) {
                         theta = 0.01f;
                     }
                     _v(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize]) / _dx / theta; 
-                    _v_valid(i, j, k) = 1;
+                    _v_valid.set(i, j, k, true);
                 }
 
             }
         }
     }
 
-    _w_valid.assign(0);
+    _w_valid.fill(false);
     for(int k = 0; k < _w.nk; ++k) {
         for(int j = 0; j < _w.nj; ++j) {
             for(int i = 1; i < _w.ni-1; ++i) {
@@ -613,36 +613,50 @@ void FluidSim::_solve_pressure(float dt) {
                         theta = 0.01f;
                     }
                     _w(i, j, k) -= dt  * (float)(_pressure[index] - _pressure[index-_isize*_jsize]) / _dx / theta; 
-                    _w_valid(i, j, k) = 1;
+                    _w_valid.set(i, j, k, true);
                 }
 
             }
         }
     }
- 
-    for(unsigned int i = 0; i < _u_valid.a.size(); i++) {
-        if(_u_valid.a[i] == 0) {
-            _u.a[i] = 0;
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                if(!_u_valid(i, j, k)) {
+                    _u(i, j, k) = 0;
+                }
+            }
         }
     }
-    for(unsigned int i = 0; i < _v_valid.a.size(); i++) {
-        if(_v_valid.a[i] == 0) {
-            _v.a[i] = 0;
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if(!_v_valid(i, j, k)) {
+                    _v(i, j, k) = 0;
+                }
+            }
         }
     }
-    for(unsigned int i = 0; i < _w_valid.a.size(); i++) {
-        if(_w_valid.a[i] == 0) {
-            _w.a[i] = 0;
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if(!_w_valid(i, j, k)) {
+                    _w(i, j, k) = 0;
+                }
+            }
         }
     }
 }
 
 
 //Apply several iterations of a very simple propagation of valid velocity data in all directions
-void FluidSim::_extrapolate(Array3f& grid, Array3c& valid) {
+void FluidSim::_extrapolate(Array3f& grid, Array3d<bool> &valid) {
 
     Array3f temp_grid = grid;
-    Array3c old_valid(valid.ni, valid.nj, valid.nk);
+    Array3d<bool> old_valid;
     for(int layers = 0; layers < 10; layers++) {
 
         old_valid = valid;
@@ -685,7 +699,7 @@ void FluidSim::_extrapolate(Array3f& grid, Array3c& valid) {
                     //assign the cell their average value and tag it as valid
                     if(count > 0) {
                         temp_grid(i, j, k) = sum /(float)count;
-                        valid(i, j, k) = 1;
+                        valid.set(i, j, k, true);
                     }
 
                 }
