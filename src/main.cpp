@@ -11,22 +11,22 @@
 
 using namespace std;
 
-float sphere_phi(const Vec3f& position, const Vec3f& centre, float radius) {
-   return (dist(position,centre) - radius);
+float sphere_phi(vmath::vec3 position, vmath::vec3 centre, float radius) {
+   return vmath::length(position - centre) - radius;
 }
 
-Vec3f c0(0.5f,0.5f,0.5f);
+vmath::vec3 c0(0.5f,0.5f,0.5f);
 float rad0 = 0.35f;
 
-float boundary_phi(const Vec3f& position) {
+float boundary_phi(vmath::vec3 position) {
    return -sphere_phi(position, c0, rad0);
 }
 
-float liquid_phi(const Vec3f& position) {
-   return sphere_phi(position, Vec3f(0.55f, 0.55f, 0.4f), 0.23f);
+float liquid_phi(vmath::vec3 position) {
+   return sphere_phi(position, vmath::vec3(0.55f, 0.55f, 0.4f), 0.23f);
 }
 
-void export_particles(int frame, const std::vector<Vec3f>& particles) {
+void export_particles(int frame, std::vector<vmath::vec3> &particles) {
    TriangleMesh mesh;
    double scale = 10.0;
    for(unsigned int p = 0; p < particles.size(); ++p) {
@@ -48,13 +48,13 @@ void export_particles(int frame, const std::vector<Vec3f>& particles) {
 //-------------
 int main(int argc, char **argv)
 {  
-   int grid_resolution = 64;
+   int grid_resolution = 32;
    float timestep = 0.01f;
    float grid_width = 1;
    FluidSim sim;
 
    printf("Initializing data\n");
-   sim.initialize(grid_width, grid_resolution, grid_resolution, grid_resolution);
+   sim.initialize(grid_resolution, grid_resolution, grid_resolution, grid_width);
    
    printf("Initializing boundary\n");
    sim.set_boundary(boundary_phi);

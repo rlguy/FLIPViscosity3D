@@ -21,6 +21,8 @@ freely, subject to the folloq.wing restrictions:
 #include <iostream>
 #include <math.h>
 
+#include "fluidsimassert.h"
+
 namespace vmath {
 
 /********************************************************************************

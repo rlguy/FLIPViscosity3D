@@ -2,9 +2,12 @@
 #define FLUIDSIM_H
 
 #include "array3.h"
-#include "vec.h"
 #include "pcgsolver/sparse_matrix.h"
 #include "pcgsolver/pcg_solver.h"
+
+#include "vmath.h"
+#include "array3d.h"
+#include "grid3d.h"
 
 #include <vector>
 
@@ -12,20 +15,20 @@ class FluidSim {
 
 public:
     void initialize(int i, int j, int k, float width);
-    void set_boundary(float (*phi)(const Vec3f&));
-    void set_liquid(float (*phi)(const Vec3f&));
-    void add_particle(const Vec3f& pos);
+    void set_boundary(float (*phi)(vmath::vec3));
+    void set_liquid(float (*phi)(vmath::vec3));
+    void add_particle(vmath::vec3 pos);
 
     void advance(float dt);
 
-    std::vector<Vec3f> particles;
+    std::vector<vmath::vec3> particles;
 
 private:
 
-    Vec3f _trace_rk2(const Vec3f& position, float dt);
+    vmath::vec3 _trace_rk2(vmath::vec3 position, float dt);
 
     float _cfl();
-    Vec3f _get_velocity(const Vec3f& position);
+    vmath::vec3 _get_velocity(vmath::vec3 position);
 
     void _advect_particles(float dt);
     void _advect(float dt);

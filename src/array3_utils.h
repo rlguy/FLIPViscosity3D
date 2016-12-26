@@ -1,14 +1,13 @@
 #ifndef ARRAY3_UTILS_H
 #define ARRAY3_UTILS_H
 
-#include "vec.h"
 #include "array3.h"
 #include "util.h"
 
-template<class S, class T>
-T interpolate_value(const Vec<3,S>& point, const Array3<T, Array1<T> >& grid) {
+template<class T>
+T interpolate_value(vmath::vec3 point, const Array3<T, Array1<T> >& grid) {
    int i,j,k;
-   S fi,fj,fk;
+   float fi,fj,fk;
 
    get_barycentric(point[0], i, fi, 0, grid.ni);
    get_barycentric(point[1], j, fj, 0, grid.nj);
@@ -20,10 +19,10 @@ T interpolate_value(const Vec<3,S>& point, const Array3<T, Array1<T> >& grid) {
          fi,fj,fk);
 }
 
-template<class S,class T>
-T interpolate_gradient(Vec<3,T>& gradient, const Vec<3,S>& point, const Array3<T, Array1<T> >& grid) {
+template<class T>
+T interpolate_gradient(vmath::vec3 &gradient, vmath::vec3 point, const Array3<T, Array1<T> >& grid) {
    int i,j,k;
-   S fx,fy,fz;
+   float fx,fy,fz;
    
    get_barycentric(point[0], i, fx, 0, grid.ni);
    get_barycentric(point[1], j, fy, 0, grid.nj);
@@ -56,9 +55,9 @@ T interpolate_gradient(Vec<3,T>& gradient, const Vec<3,S>& point, const Array3<T
    T ddz11 = (v111 - v110);
    T dv_dz = bilerp(ddz00,ddz10,ddz01,ddz11, fx,fy);
 
-   gradient[0] = dv_dx;
-   gradient[1] = dv_dy;
-   gradient[2] = dv_dz;
+   gradient.x = dv_dx;
+   gradient.y = dv_dy;
+   gradient.z = dv_dz;
    
    //return value for good measure.
    return trilerp(

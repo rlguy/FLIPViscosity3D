@@ -38,12 +38,12 @@ void FluidSim::initialize(int i, int j, int k, float width) {
 }
 
 //Initialize the grid-based signed distance field that dictates the position of the solid boundary
-void FluidSim::set_boundary(float (*phi)(const Vec3f&)) {
+void FluidSim::set_boundary(float (*phi)(vmath::vec3)) {
 
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                Vec3f pos(i * _dx, j * _dx, k * _dx);
+                vmath::vec3 pos(i * _dx, j * _dx, k * _dx);
                 _nodal_solid_phi(i,j,k) = phi(pos);
             }
         }
@@ -51,7 +51,7 @@ void FluidSim::set_boundary(float (*phi)(const Vec3f&)) {
 
 }
 
-void FluidSim::set_liquid(float (*phi)(const Vec3f&)) {
+void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
     //surface.reset_phi(phi, _dx, Vec3f(0.5f*_dx,0.5f*_dx,0.5f*_dx), ni, _jsize, _ksize);
     
     //initialize particles
@@ -61,11 +61,11 @@ void FluidSim::set_liquid(float (*phi)(const Vec3f&)) {
             for(int i = 0; i < _isize; i++) {
 
                 for (int i_dx = 0; i_dx < 8; i_dx++) {
-                    Vec3f pos(i*_dx,j*_dx,k*_dx);
+                    vmath::vec3 pos(i*_dx, j*_dx, k*_dx);
                     float a = randhashf(seed++); 
                     float b = randhashf(seed++); 
                     float c = randhashf(seed++);
-                    pos += _dx * Vec3f(a,b,c);
+                    pos += _dx * vmath::vec3(a, b, c);
 
                     if(phi(pos) <= -_particle_radius) {
                         float solid_phi = interpolate_value(pos/_dx, _nodal_solid_phi);
@@ -136,7 +136,7 @@ float FluidSim::_cfl() {
     return 5*_dx / maxvel;
 }
 
-void FluidSim::add_particle(const Vec3f& pos) {
+void FluidSim::add_particle(vmath::vec3 pos) {
     particles.push_back(pos);
 }
 
@@ -172,12 +172,12 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _u.ni; i++) {
                 if(_u_weights(i, j, k) == 0) {
                     //apply constraint
-                    Vec3f pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
-                    Vec3f vel = _get_velocity(pos);
-                    Vec3f normal(0,0,0);
+                    vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
-                    normalize(normal);
-                    float perp_component = dot(vel, normal);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
                     _temp_u(i, j, k) = vel[0];
                 }
@@ -191,12 +191,12 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _v.ni; i++) {
                 if(_v_weights(i, j, k) == 0) {
                     //apply constraint
-                    Vec3f pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
-                    Vec3f vel = _get_velocity(pos);
-                    Vec3f normal(0,0,0);
+                    vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
-                    normalize(normal);
-                    float perp_component = dot(vel, normal);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
                     _temp_v(i, j, k) = vel[1];
                 }
@@ -210,12 +210,12 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _w.ni; i++) {
                 if(_w_weights(i, j, k) == 0) {
                     //apply constraint
-                    Vec3f pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
-                    Vec3f vel = _get_velocity(pos);
-                    Vec3f normal(0,0,0);
+                    vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
-                    normalize(normal);
-                    float perp_component = dot(vel, normal);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
                     _temp_w(i, j, k) = vel[2];
                 }
@@ -238,10 +238,10 @@ void FluidSim::_advect_particles(float dt) {
         //check boundaries and project exterior particles back in
         float phi_val = interpolate_value(particles[p]/_dx, _nodal_solid_phi); 
         if(phi_val < 0) {
-            Vec3f grad;
+            vmath::vec3 grad;
             interpolate_gradient(grad, particles[p]/_dx, _nodal_solid_phi);
-            if(mag(grad) > 0) {
-                normalize(grad);
+            if(vmath::lengthsq(grad) > 0) {
+                grad = vmath::normalize(grad);
             }
             particles[p] -= phi_val * grad;
         }
@@ -260,7 +260,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                Vec3f pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+                vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
                 pos = _trace_rk2(pos, -dt);
                 _temp_u(i, j, k) = _get_velocity(pos)[0];  
             }
@@ -271,7 +271,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                Vec3f pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+                vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
                 pos = _trace_rk2(pos, -dt);
                 _temp_v(i, j, k) = _get_velocity(pos)[1];
             }
@@ -282,7 +282,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
-                Vec3f pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+                vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
                 pos = _trace_rk2(pos, -dt);
                 _temp_w(i, j, k) = _get_velocity(pos)[2];
             }
@@ -301,12 +301,12 @@ void FluidSim::_compute_phi() {
     _liquid_phi.assign(3*_dx);
     for(unsigned int p = 0; p < particles.size(); ++p) {
 
-        Vec3i cell_ind(particles[p] / _dx);
+        GridIndex cell_ind = Grid3d::positionToGridIndex(particles[p], _dx);
         for(int k = max(0,cell_ind[2] - 1); k <= min(cell_ind[2]+1,_ksize-1); k++) {
             for(int j = max(0,cell_ind[1] - 1); j <= min(cell_ind[1]+1,_jsize-1); j++) {
                 for(int i = max(0,cell_ind[0] - 1); i <= min(cell_ind[0]+1,_isize-1); i++) {
-                    Vec3f sample_pos((i+0.5f)*_dx, (j+0.5f)*_dx,(k+0.5f)*_dx);
-                    float test_val = dist(sample_pos, particles[p]) - _particle_radius;
+                    vmath::vec3 sample_pos((i+0.5f)*_dx, (j+0.5f)*_dx,(k+0.5f)*_dx);
+                    float test_val = vmath::length(sample_pos - particles[p]) - _particle_radius;
                     if(test_val < _liquid_phi(i, j, k)) {
                         _liquid_phi(i, j, k) = test_val;
                     }
@@ -358,23 +358,23 @@ void FluidSim::_project(float dt) {
 
 
 //Apply RK2 to advect a point in the domain.
-Vec3f FluidSim::_trace_rk2(const Vec3f& position, float dt) {
-    Vec3f input = position;
-    Vec3f velocity = _get_velocity(input);
+vmath::vec3 FluidSim::_trace_rk2(vmath::vec3 position, float dt) {
+    vmath::vec3 input = position;
+    vmath::vec3 velocity = _get_velocity(input);
     velocity = _get_velocity(input + 0.5f * dt * velocity);
     input += dt * velocity;
     return input;
 }
 
 //Interpolate velocity from the MAC grid.
-Vec3f FluidSim::_get_velocity(const Vec3f& position) {
+vmath::vec3 FluidSim::_get_velocity(vmath::vec3 position) {
 
     //Interpolate the velocity from the u and v grids
-    float u_value = interpolate_value(position / _dx - Vec3f(0, 0.5f, 0.5f), _u);
-    float v_value = interpolate_value(position / _dx - Vec3f(0.5f, 0, 0.5f), _v);
-    float w_value = interpolate_value(position / _dx - Vec3f(0.5f, 0.5f, 0), _w);
+    float u_value = interpolate_value(position / _dx - vmath::vec3(0, 0.5f, 0.5f), _u);
+    float v_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0, 0.5f), _v);
+    float w_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0.5f, 0), _w);
 
-    return Vec3f(u_value, v_value, w_value);
+    return vmath::vec3(u_value, v_value, w_value);
 }
 
 
