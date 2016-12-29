@@ -50,6 +50,7 @@ public:
     float V(GridIndex g);
     float W(GridIndex g);
 
+    void set(MACVelocityField &vfield);
     void setU(int i, int j, int k, double val);
     void setV(int i, int j, int k, double val);
     void setW(int i, int j, int k, double val);

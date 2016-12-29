@@ -44,20 +44,19 @@ void FluidSim::set_boundary(float (*phi)(vmath::vec3)) {
 }
 
 void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
-    //surface.reset_phi(phi, _dx, Vec3f(0.5f*_dx,0.5f*_dx,0.5f*_dx), ni, _jsize, _ksize);
-    
     //initialize particles
     int seed = 0;
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
+                vmath::vec3 gpos = Grid3d::GridIndexToPosition(i, j, k, _dx);
 
                 for (int i_dx = 0; i_dx < 8; i_dx++) {
-                    vmath::vec3 pos(i*_dx, j*_dx, k*_dx);
                     float a = randhashf(seed++); 
                     float b = randhashf(seed++); 
                     float c = randhashf(seed++);
-                    pos += _dx * vmath::vec3(a, b, c);
+                    vmath::vec3 jitter = _dx * vmath::vec3(a, b, c);
+                    vmath::vec3 pos = gpos + jitter;
 
                     if(phi(pos) <= -_particle_radius) {
                         float solid_phi = interpolate_value(pos/_dx, _nodal_solid_phi);
@@ -168,29 +167,7 @@ void FluidSim::_add_force(float dt) {
 //For extrapolated points, replace the normal component
 //of velocity with the object velocity (in this case zero).
 void FluidSim::_constrain_velocity() {
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                _tempMACVelocity.setU(i, j, k, _MACVelocity.U(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
-            for(int i = 0; i < _isize; i++) {
-                _tempMACVelocity.setV(i, j, k, _MACVelocity.V(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize; j++) { 
-            for(int i = 0; i < _isize; i++) {
-                _tempMACVelocity.setW(i, j, k, _MACVelocity.W(i, j, k));
-            }
-        }
-    }
+    _tempMACVelocity.set(_MACVelocity);
 
     //(At lower grid resolutions, the normal estimate from the signed
     //distance function can be poor, so it doesn't work quite as well.
@@ -202,7 +179,7 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _isize + 1; i++) {
                 if(_u_weights(i, j, k) == 0) {
                     //apply constraint
-                    vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
@@ -221,7 +198,7 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _isize; i++) {
                 if(_v_weights(i, j, k) == 0) {
                     //apply constraint
-                    vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
@@ -240,7 +217,7 @@ void FluidSim::_constrain_velocity() {
             for(int i = 0; i < _isize; i++) {
                 if(_w_weights(i, j, k) == 0) {
                     //apply constraint
-                    vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
                     interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
@@ -253,30 +230,7 @@ void FluidSim::_constrain_velocity() {
         }
     }
 
-    //update
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                _MACVelocity.setU(i, j, k, _tempMACVelocity.U(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
-            for(int i = 0; i < _isize; i++) {
-                _MACVelocity.setV(i, j, k, _tempMACVelocity.V(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize; j++) { 
-            for(int i = 0; i < _isize; i++) {
-                _MACVelocity.setW(i, j, k, _tempMACVelocity.W(i, j, k));
-            }
-        }
-    }
+    _MACVelocity.set(_tempMACVelocity);
 
 }
 
@@ -308,7 +262,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                vmath::vec3 pos(i*_dx, (j+0.5f)*_dx, (k+0.5f)*_dx);
+                vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
                 pos = _trace_rk2(pos, -dt);
                 _tempMACVelocity.setU(i, j, k, _get_velocity(pos).x);  
             }
@@ -319,7 +273,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                vmath::vec3 pos((i+0.5f)*_dx, j*_dx, (k+0.5f)*_dx);
+                vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
                 pos = _trace_rk2(pos, -dt);
                 _tempMACVelocity.setV(i, j, k, _get_velocity(pos).y);
             }
@@ -330,7 +284,7 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
-                vmath::vec3 pos((i+0.5f)*_dx, (j+0.5f)*_dx, k*_dx);
+                vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
                 pos = _trace_rk2(pos, -dt);
                 _tempMACVelocity.setW(i, j, k, _get_velocity(pos).z);
             }
@@ -338,42 +292,26 @@ void FluidSim::_advect(float dt) {
     }
 
     //move update velocities into u/v vectors
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                _MACVelocity.setU(i, j, k, _tempMACVelocity.U(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
-            for(int i = 0; i < _isize; i++) {
-                _MACVelocity.setV(i, j, k, _tempMACVelocity.V(i, j, k));
-            }
-        }
-    }
-
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize; j++) { 
-            for(int i = 0; i < _isize; i++) {
-                _MACVelocity.setW(i, j, k, _tempMACVelocity.W(i, j, k));
-            }
-        }
-    }
+    _MACVelocity.set(_tempMACVelocity);
 }
 
 void FluidSim::_compute_phi() {
     
     //grab from particles
     _liquid_phi.fill(3*_dx);
+    GridIndex g, gmin, gmax;
     for(unsigned int p = 0; p < particles.size(); ++p) {
 
-        GridIndex cell_ind = Grid3d::positionToGridIndex(particles[p], _dx);
-        for(int k = max(0,cell_ind[2] - 1); k <= min(cell_ind[2]+1,_ksize-1); k++) {
-            for(int j = max(0,cell_ind[1] - 1); j <= min(cell_ind[1]+1,_jsize-1); j++) {
-                for(int i = max(0,cell_ind[0] - 1); i <= min(cell_ind[0]+1,_isize-1); i++) {
-                    vmath::vec3 sample_pos((i+0.5f)*_dx, (j+0.5f)*_dx,(k+0.5f)*_dx);
+        g = Grid3d::positionToGridIndex(particles[p], _dx);
+        gmin = GridIndex(max(0, g.i - 1), max(0, g.j - 1), max(0, g.k - 1));
+        gmax = GridIndex(min(g.i + 1, _isize - 1), 
+                         min(g.j + 1, _jsize - 1), 
+                         min(g.k + 1, _ksize - 1));
+
+        for(int k = gmin.k; k <= gmax.k; k++) {
+            for(int j = gmin.j; j <= gmax.j; j++) {
+                for(int i = gmin.i; i <= gmax.i; i++) {
+                    vmath::vec3 sample_pos = Grid3d::GridIndexToCellCenter(i, j, k, _dx);
                     float test_val = vmath::length(sample_pos - particles[p]) - _particle_radius;
                     if(test_val < _liquid_phi(i, j, k)) {
                         _liquid_phi.set(i, j, k, test_val);
@@ -507,7 +445,7 @@ void FluidSim::_solve_pressure(float dt) {
     for(int k = 1; k < _ksize - 1; k++) {
         for(int j = 1; j < _jsize - 1; j++) {
             for(int i = 1; i < _isize - 1; i++) {
-                int index = i + _isize*j + _isize*_jsize*k;
+                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
 
                 _rhs[index] = 0;
                 _pressure[index] = 0;
@@ -627,7 +565,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
 
-                int index = i + j*_isize + k*_isize*_jsize;
+                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_u_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i - 1, j, k) >= 0) {
@@ -650,7 +588,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                int index = i + j*_isize + k*_isize*_jsize;
+                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_v_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j - 1, k) >= 0) {
@@ -673,7 +611,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; ++j) {
             for(int i = 1; i < _isize; ++i) {
 
-                int index = i + j*_isize + k*_isize*_jsize;
+                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_w_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j, k - 1) >= 0) {

@@ -144,6 +144,36 @@ float MACVelocityField::W(GridIndex g) {
     return _w(g);
 }
 
+void MACVelocityField::set(MACVelocityField &vfield) {
+    int vi, vj, vk;
+    vfield.getGridDimensions(&vi, &vj, &vk);
+    FLUIDSIM_ASSERT(_isize == vi && _jsize == vj &&  _ksize == vk);
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                setU(i, j, k, vfield.U(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                setV(i, j, k, vfield.V(i, j, k));
+            }
+        }
+    }
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                setW(i, j, k, vfield.W(i, j, k));
+            }
+        }
+    }
+}
+
 void MACVelocityField::setU(int i, int j, int k, double val) {
     if (!isIndexInRangeU(i, j, k)) {
         return;
