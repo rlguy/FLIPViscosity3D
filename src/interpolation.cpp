@@ -58,3 +58,45 @@ double Interpolation::trilinearInterpolate(double p[8], double x, double y, doub
            p[6] * x * y * (1 - z) + 
            p[7] * x * y * z;
 }
+
+double Interpolation::trilinearInterpolate(vmath::vec3 p, double dx, Array3d<float> &grid) {
+
+    GridIndex g = Grid3d::positionToGridIndex(p, dx);
+    vmath::vec3 gpos = Grid3d::GridIndexToPosition(g, dx);
+
+    double inv_dx = 1.0 / dx;
+    double ix = (p.x - gpos.x)*inv_dx;
+    double iy = (p.y - gpos.y)*inv_dx;
+    double iz = (p.z - gpos.z)*inv_dx;
+
+    double points[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    int isize = grid.width;
+    int jsize = grid.height;
+    int ksize = grid.depth;
+    if (Grid3d::isGridIndexInRange(g.i,   g.j,   g.k, isize, jsize, ksize))   { 
+        points[0] = grid(g.i,   g.j,   g.k); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i+1, g.j,   g.k, isize, jsize, ksize))   { 
+        points[1] = grid(g.i+1, g.j,   g.k); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i,   g.j+1, g.k, isize, jsize, ksize))   { 
+        points[2] = grid(g.i,   g.j+1, g.k); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i,   g.j,   g.k+1, isize, jsize, ksize)) {
+        points[3] = grid(g.i,   g.j,   g.k+1); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i+1, g.j,   g.k+1, isize, jsize, ksize)) { 
+        points[4] = grid(g.i+1, g.j,   g.k+1); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i,   g.j+1, g.k+1, isize, jsize, ksize)) { 
+        points[5] = grid(g.i,   g.j+1, g.k+1); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i+1, g.j+1, g.k, isize, jsize, ksize))   { 
+        points[6] = grid(g.i+1, g.j+1, g.k); 
+    }
+    if (Grid3d::isGridIndexInRange(g.i+1, g.j+1, g.k+1, isize, jsize, ksize)) { 
+        points[7] = grid(g.i+1, g.j+1, g.k+1); 
+    }
+
+    return trilinearInterpolate(points, ix, iy, iz);
+}

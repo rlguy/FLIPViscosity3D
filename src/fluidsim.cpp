@@ -59,7 +59,7 @@ void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
                     vmath::vec3 pos = gpos + jitter;
 
                     if(phi(pos) <= -_particle_radius) {
-                        float solid_phi = interpolate_value(pos/_dx, _nodal_solid_phi);
+                        float solid_phi = Interpolation::trilinearInterpolate(pos, _dx, _nodal_solid_phi);
                         if(solid_phi >= 0) {
                             particles.push_back(pos);
                         }
@@ -240,7 +240,7 @@ void FluidSim::_advect_particles(float dt) {
         particles[p] = _trace_rk2(particles[p], dt);
     
         //check boundaries and project exterior particles back in
-        float phi_val = interpolate_value(particles[p]/_dx, _nodal_solid_phi); 
+        float phi_val = Interpolation::trilinearInterpolate(particles[p], _dx, _nodal_solid_phi); 
         if(phi_val < 0) {
             vmath::vec3 grad;
             interpolate_gradient(grad, particles[p]/_dx, _nodal_solid_phi);
@@ -374,11 +374,9 @@ vmath::vec3 FluidSim::_trace_rk2(vmath::vec3 position, float dt) {
 
 //Interpolate velocity from the MAC grid.
 vmath::vec3 FluidSim::_get_velocity(vmath::vec3 position) {
-
-    //Interpolate the velocity from the u and v grids
-    float u_value = interpolate_value(position / _dx - vmath::vec3(0, 0.5f, 0.5f), *(_MACVelocity.getArray3dU()));
-    float v_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0, 0.5f), *(_MACVelocity.getArray3dV()));
-    float w_value = interpolate_value(position / _dx - vmath::vec3(0.5f, 0.5f, 0), *(_MACVelocity.getArray3dW()));
+    float u_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0, 0.5*_dx, 0.5*_dx), _dx, *(_MACVelocity.getArray3dU()));
+    float v_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0, 0.5*_dx), _dx, *(_MACVelocity.getArray3dV()));
+    float w_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0.5*_dx, 0), _dx, *(_MACVelocity.getArray3dW()));
 
     return vmath::vec3(u_value, v_value, w_value);
 }

@@ -8,6 +8,7 @@
 #include "array3d.h"
 #include "grid3d.h"
 #include "macvelocityfield.h"
+#include "interpolation.h"
 
 #include <vector>
 

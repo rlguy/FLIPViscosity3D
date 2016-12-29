@@ -21,12 +21,17 @@ freely, subject to the following restrictions:
 #include <iostream>
 #include <math.h>
 
+#include "array3d.h"
+#include "grid3d.h"
+
 namespace Interpolation {
 
     extern double cubicInterpolate(double p[4], double x);
     extern double bicubicInterpolate(double p[4][4], double x, double y);
     extern double tricubicInterpolate(double p[4][4][4], double x, double y, double z);
+
     extern double trilinearInterpolate(double p[8], double x, double y, double z);
+    extern double trilinearInterpolate(vmath::vec3 p, double dx, Array3d<float> &grid);
 }
 
 #endif
