@@ -32,6 +32,11 @@ namespace Interpolation {
 
     extern double trilinearInterpolate(double p[8], double x, double y, double z);
     extern double trilinearInterpolate(vmath::vec3 p, double dx, Array3d<float> &grid);
+
+    extern double bilinearInterpolate(double v00, double v10, double v01, double v11, 
+                                      double ix, double iy);
+    extern void trilinearInterpolateGradient(
+            vmath::vec3 p, double dx, Array3d<float> &grid, vmath::vec3 *grad);
 }
 
 #endif

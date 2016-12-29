@@ -1,6 +1,5 @@
 #include "fluidsim.h"
 
-#include "array3_utils.h"
 #include "levelset_util.h"
 #include "pcgsolver/sparse_matrix.h"
 #include "pcgsolver/pcg_solver.h"
@@ -182,7 +181,7 @@ void FluidSim::_constrain_velocity() {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
-                    interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
+                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -201,7 +200,7 @@ void FluidSim::_constrain_velocity() {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
-                    interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
+                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -220,7 +219,7 @@ void FluidSim::_constrain_velocity() {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
                     vmath::vec3 normal(0,0,0);
-                    interpolate_gradient(normal, pos/_dx, _nodal_solid_phi); 
+                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -243,7 +242,7 @@ void FluidSim::_advect_particles(float dt) {
         float phi_val = Interpolation::trilinearInterpolate(particles[p], _dx, _nodal_solid_phi); 
         if(phi_val < 0) {
             vmath::vec3 grad;
-            interpolate_gradient(grad, particles[p]/_dx, _nodal_solid_phi);
+            Interpolation::trilinearInterpolateGradient(particles[p], _dx, _nodal_solid_phi, &grad);
             if(vmath::lengthsq(grad) > 0) {
                 grad = vmath::normalize(grad);
             }
