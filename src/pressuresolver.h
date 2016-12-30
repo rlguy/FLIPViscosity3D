@@ -43,8 +43,7 @@ freely, subject to the following restrictions:
 #include "array3d.h"
 #include "gridindexvector.h"
 #include "fluidsimassert.h"
-
-#include "levelset_util.h"
+#include "levelsetutils.h"
 
 struct WeightGrid {
     Array3d<float> U;
@@ -187,7 +186,7 @@ private:
     double _deltaTime = 0;
     int _matSize = 0;
 
-    double _pressureSolveTolerance = 1e-18;
+    double _pressureSolveTolerance = 1e-9;
     int _maxCGIterations = 200;
     double _minfrac = 0.01f;
 

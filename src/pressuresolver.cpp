@@ -202,7 +202,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusi -= term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiRight), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiRight), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -212,7 +212,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiLeft < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiLeft), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiLeft), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -223,7 +223,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusj -= term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiTop), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiTop), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -233,7 +233,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiBot < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiBot), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiBot), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -244,7 +244,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusk -= term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiFar), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiFar), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -254,7 +254,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiNear < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(fraction_inside(phiCenter, phiNear), _minfrac);
+            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiNear), _minfrac);
             A[index].diag += term / theta;
         }
     }

@@ -1,6 +1,6 @@
 #include "fluidsim.h"
 
-#include "levelset_util.h"
+#include "levelsetutils.h"
 
 void FluidSim::initialize(int i, int j, int k, float width) {
     _isize = i;
@@ -383,10 +383,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                   _nodal_solid_phi(i, j + 1, k),
-                                                   _nodal_solid_phi(i, j, k + 1),
-                                                   _nodal_solid_phi(i, j + 1, k + 1));
+                float weight = 1 - LevelsetUtils::fractionInside(
+                                        _nodal_solid_phi(i, j, k), 
+                                        _nodal_solid_phi(i, j + 1, k),
+                                        _nodal_solid_phi(i, j, k + 1), 
+                                        _nodal_solid_phi(i, j + 1, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.U.set(i, j, k, weight);
@@ -397,10 +398,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                   _nodal_solid_phi(i, j, k + 1),
-                                                   _nodal_solid_phi(i + 1, j, k),
-                                                   _nodal_solid_phi(i + 1, j, k + 1));
+                float weight = 1 - LevelsetUtils::fractionInside(
+                                       _nodal_solid_phi(i, j, k),
+                                       _nodal_solid_phi(i, j, k + 1),
+                                       _nodal_solid_phi(i + 1, j, k),
+                                       _nodal_solid_phi(i + 1, j, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.V.set(i, j, k, weight);
@@ -411,10 +413,11 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
-                float weight = 1 - fraction_inside(_nodal_solid_phi(i, j, k),
-                                                   _nodal_solid_phi(i, j + 1, k),
-                                                   _nodal_solid_phi(i + 1, j, k),
-                                                   _nodal_solid_phi(i + 1, j + 1, k));
+                float weight = 1 - LevelsetUtils::fractionInside(
+                                        _nodal_solid_phi(i, j, k),
+                                        _nodal_solid_phi(i, j + 1, k),
+                                        _nodal_solid_phi(i + 1, j, k),
+                                        _nodal_solid_phi(i + 1, j + 1, k));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.W.set(i, j, k, weight);
@@ -461,7 +464,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                 if(_weightGrid.U(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i - 1, j, k) >= 0) {
-                        theta = fraction_inside(_liquid_phi(i-1,j,k), _liquid_phi(i,j,k));
+                        theta = LevelsetUtils::fractionInside(_liquid_phi(i-1,j,k), _liquid_phi(i,j,k));
                     }
                     if(theta < 0.01f) {
                         theta = 0.01f;
@@ -484,7 +487,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                 if(_weightGrid.V(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j - 1, k) >= 0) {
-                        theta = fraction_inside(_liquid_phi(i, j - 1, k), _liquid_phi(i, j, k));
+                        theta = LevelsetUtils::fractionInside(_liquid_phi(i, j - 1, k), _liquid_phi(i, j, k));
                     }
                     if(theta < 0.01f) {
                         theta = 0.01f;
@@ -507,7 +510,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                 if(_weightGrid.W(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j, k - 1) >= 0) {
-                        theta = fraction_inside(_liquid_phi(i, j, k - 1), _liquid_phi(i, j, k));
+                        theta = LevelsetUtils::fractionInside(_liquid_phi(i, j, k - 1), _liquid_phi(i, j, k));
                     }
                     if(theta < 0.01f) {
                         theta = 0.01f;
