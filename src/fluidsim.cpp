@@ -11,10 +11,6 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
     _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
 
-    _u_weights = Array3d<float>(_isize + 1, _jsize, _ksize); 
-    _v_weights = Array3d<float>(_isize, _jsize + 1, _ksize); 
-    _w_weights = Array3d<float>(_isize, _jsize, _ksize + 1); 
-
     _u_valid = Array3d<bool>(_isize + 1, _jsize, _ksize);
     _v_valid = Array3d<bool>(_isize, _jsize + 1, _ksize); 
     _w_valid = Array3d<bool>(_isize, _jsize, _ksize + 1);
@@ -24,6 +20,7 @@ void FluidSim::initialize(int i, int j, int k, float width) {
 
     _nodal_solid_phi = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1);
     _liquid_phi = Array3d<float>(_isize, _jsize, _ksize);
+    _weightGrid = WeightGrid(_isize, _jsize, _ksize);
 }
 
 //Initialize the grid-based signed distance field that dictates the position of the solid boundary
@@ -173,7 +170,7 @@ void FluidSim::_constrain_velocity() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                if(_u_weights(i, j, k) == 0) {
+                if(_weightGrid.U(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
@@ -192,7 +189,7 @@ void FluidSim::_constrain_velocity() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                if(_v_weights(i, j, k) == 0) {
+                if(_weightGrid.V(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
@@ -211,7 +208,7 @@ void FluidSim::_constrain_velocity() {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
-                if(_w_weights(i, j, k) == 0) {
+                if(_weightGrid.W(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
@@ -392,7 +389,7 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i, j + 1, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
-                _u_weights.set(i, j, k, weight);
+                _weightGrid.U.set(i, j, k, weight);
             }
         }
     }
@@ -406,7 +403,7 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i + 1, j, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
-                _v_weights.set(i, j, k, weight);
+                _weightGrid.V.set(i, j, k, weight);
             }
         }
     }
@@ -420,7 +417,7 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i + 1, j + 1, k));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
-                _w_weights.set(i, j, k, weight);
+                _weightGrid.W.set(i, j, k, weight);
             }
         }
     }
@@ -447,9 +444,7 @@ Array3d<float> FluidSim::_solve_pressure(float dt) {
     params.pressureCells = &pressureCells;
     params.velocityField = &_MACVelocity;
     params.liquidSDF = &_liquid_phi;
-    params.uWeights = &_u_weights;
-    params.vWeights = &_v_weights;
-    params.wWeights = &_w_weights;
+    params.weightGrid = &_weightGrid;
 
     PressureSolver solver;
     return solver.solve(params);
@@ -463,7 +458,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 1; i < _isize; i++) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_u_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
+                if(_weightGrid.U(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i - 1, j, k) >= 0) {
                         theta = fraction_inside(_liquid_phi(i-1,j,k), _liquid_phi(i,j,k));
@@ -486,7 +481,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 0; i < _isize; i++) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_v_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
+                if(_weightGrid.V(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j - 1, k) >= 0) {
                         theta = fraction_inside(_liquid_phi(i, j - 1, k), _liquid_phi(i, j, k));
@@ -509,7 +504,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 1; i < _isize; ++i) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_w_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
+                if(_weightGrid.W(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j, k - 1) >= 0) {
                         theta = fraction_inside(_liquid_phi(i, j, k - 1), _liquid_phi(i, j, k));

@@ -46,6 +46,19 @@ freely, subject to the following restrictions:
 
 #include "levelset_util.h"
 
+struct WeightGrid {
+    Array3d<float> U;
+    Array3d<float> V;
+    Array3d<float> W;
+
+    WeightGrid() {}
+    WeightGrid(int i, int j, int k) :
+        U(i + 1, j, k, 0.0f),
+        V(i, j + 1, k, 0.0f),
+        W(i, j, k + 1, 0.0f) {}
+};
+
+
 struct PressureSolverParameters {
     double cellwidth;
     double density;
@@ -54,9 +67,7 @@ struct PressureSolverParameters {
     GridIndexVector *pressureCells;
     MACVelocityField *velocityField;
     Array3d<float> *liquidSDF;
-    Array3d<float> *uWeights;
-    Array3d<float> *vWeights;
-    Array3d<float> *wWeights;
+    WeightGrid *weightGrid;
 
     //LogFile *logfile;
 };
@@ -123,18 +134,6 @@ public:
     PressureSolver
 ********************************************************************************/
 
-struct WeightGrid {
-    Array3d<float> U;
-    Array3d<float> V;
-    Array3d<float> W;
-
-    WeightGrid() {}
-    WeightGrid(int i, int j, int k) :
-        U(i + 1, j, k, 0.0f),
-        V(i, j + 1, k, 0.0f),
-        W(i, j, k + 1, 0.0f) {}
-};
-
 class PressureSolver
 {
 public:
@@ -195,9 +194,7 @@ private:
     GridIndexVector *_pressureCells;
     MACVelocityField *_vField;
     Array3d<float> *_liquidSDF;
-    Array3d<float> *_uWeights;
-    Array3d<float> *_vWeights;
-    Array3d<float> *_wWeights;
+    WeightGrid *_weightGrid;
 
     //LogFile *_logfile;
     GridIndexKeyMap _keymap;
