@@ -1,8 +1,6 @@
 #include "fluidsim.h"
 
 #include "levelset_util.h"
-#include "pcgsolver/sparse_matrix.h"
-#include "pcgsolver/pcg_solver.h"
 
 void FluidSim::initialize(int i, int j, int k, float width) {
     _isize = i;
@@ -44,17 +42,16 @@ void FluidSim::set_boundary(float (*phi)(vmath::vec3)) {
 
 void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
     //initialize particles
-    int seed = 0;
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
                 vmath::vec3 gpos = Grid3d::GridIndexToPosition(i, j, k, _dx);
 
                 for (int i_dx = 0; i_dx < 8; i_dx++) {
-                    float a = randhashf(seed++); 
-                    float b = randhashf(seed++); 
-                    float c = randhashf(seed++);
-                    vmath::vec3 jitter = _dx * vmath::vec3(a, b, c);
+                    float a = _randomDouble(0.0, _dx); 
+                    float b = _randomDouble(0.0, _dx); 
+                    float c = _randomDouble(0.0, _dx);
+                    vmath::vec3 jitter = vmath::vec3(a, b, c);
                     vmath::vec3 pos = gpos + jitter;
 
                     if(phi(pos) <= -_particle_radius) {
@@ -302,10 +299,10 @@ void FluidSim::_compute_phi() {
     for(unsigned int p = 0; p < particles.size(); ++p) {
 
         g = Grid3d::positionToGridIndex(particles[p], _dx);
-        gmin = GridIndex(max(0, g.i - 1), max(0, g.j - 1), max(0, g.k - 1));
-        gmax = GridIndex(min(g.i + 1, _isize - 1), 
-                         min(g.j + 1, _jsize - 1), 
-                         min(g.k + 1, _ksize - 1));
+        gmin = GridIndex(fmax(0, g.i - 1), fmax(0, g.j - 1), fmax(0, g.k - 1));
+        gmax = GridIndex(fmin(g.i + 1, _isize - 1), 
+                         fmin(g.j + 1, _jsize - 1), 
+                         fmin(g.k + 1, _ksize - 1));
 
         for(int k = gmin.k; k <= gmax.k; k++) {
             for(int j = gmin.j; j <= gmax.j; j++) {
@@ -393,7 +390,9 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i, j + 1, k),
                                                    _nodal_solid_phi(i, j, k + 1),
                                                    _nodal_solid_phi(i, j + 1, k + 1));
-                _u_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
+                weight = fmax(weight, 0.0);
+                weight = fmin(weight, 1.0);
+                _u_weights.set(i, j, k, weight);
             }
         }
     }
@@ -405,7 +404,9 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i, j, k + 1),
                                                    _nodal_solid_phi(i + 1, j, k),
                                                    _nodal_solid_phi(i + 1, j, k + 1));
-                _v_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
+                weight = fmax(weight, 0.0);
+                weight = fmin(weight, 1.0);
+                _v_weights.set(i, j, k, weight);
             }
         }
     }
@@ -417,7 +418,9 @@ void FluidSim::_compute_weights() {
                                                    _nodal_solid_phi(i, j + 1, k),
                                                    _nodal_solid_phi(i + 1, j, k),
                                                    _nodal_solid_phi(i + 1, j + 1, k));
-                _w_weights.set(i, j, k, clamp(weight, 0.0f, 1.0f));
+                weight = fmax(weight, 0.0);
+                weight = fmin(weight, 1.0);
+                _w_weights.set(i, j, k, weight);
             }
         }
     }
@@ -426,135 +429,30 @@ void FluidSim::_compute_weights() {
 
 //An implementation of the variational _pressure projection solve for static geometry
 void FluidSim::_solve_pressure(float dt) {
-
-    int system_size = _isize * _jsize * _ksize;
-    if((int)_rhs.size() != system_size) {
-        _rhs.resize(system_size);
-        _pressure.resize(system_size);
-        _matrix.resize(system_size);
-    }
-    
-    _matrix.zero();
-    _rhs.assign(_rhs.size(), 0);
-    _pressure.assign(_pressure.size(), 0);
-
-    //Build the linear system for _pressure
+    GridIndexVector pressureCells(_isize, _jsize, _ksize);
     for(int k = 1; k < _ksize - 1; k++) {
         for(int j = 1; j < _jsize - 1; j++) {
             for(int i = 1; i < _isize - 1; i++) {
-                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-
-                _rhs[index] = 0;
-                _pressure[index] = 0;
-                float centre_phi = _liquid_phi(i,j,k);
-                if(centre_phi >= 0) {
-                    continue;
+                if(_liquid_phi(i, j, k) < 0) {
+                    pressureCells.push_back(i, j, k);
                 }
-
-                //right neighbour
-                float term = _u_weights(i + 1, j, k) * dt / sqr(_dx);
-                float right_phi = _liquid_phi(i + 1, j, k);
-                if(right_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index + 1, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, right_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term / theta);
-                }
-                _rhs[index] -= _u_weights(i + 1, j, k) * _MACVelocity.U(i + 1, j, k) / _dx;
-
-                //left neighbour
-                term = _u_weights(i, j, k) * dt / sqr(_dx);
-                float left_phi = _liquid_phi(i - 1, j, k);
-                if(left_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index - 1, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, left_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term / theta);
-                }
-                _rhs[index] += _u_weights(i, j, k) * _MACVelocity.U(i, j, k) / _dx;
-
-                //top neighbour
-                term = _v_weights(i, j + 1, k) * dt / sqr(_dx);
-                float top_phi = _liquid_phi(i, j + 1, k);
-                if(top_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index + _isize, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, top_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term/theta);
-                }
-                _rhs[index] -= _v_weights(i, j + 1, k) * _MACVelocity.V(i, j + 1, k) / _dx;
-
-                //bottom neighbour
-                term = _v_weights(i, j, k) * dt / sqr(_dx);
-                float bot_phi = _liquid_phi(i, j - 1, k);
-                if(bot_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index - _isize, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, bot_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term / theta);
-                }
-                _rhs[index] += _v_weights(i, j, k) * _MACVelocity.V(i, j, k) / _dx;
-
-
-                //far neighbour
-                term = _w_weights(i, j, k + 1) * dt / sqr(_dx);
-                float far_phi = _liquid_phi(i, j, k + 1);
-                if(far_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index + _isize*_jsize, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, far_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term / theta);
-                }
-                _rhs[index] -= _w_weights(i, j, k + 1) * _MACVelocity.W(i, j, k + 1) / _dx;
-
-                //near neighbour
-                term = _w_weights(i, j, k) * dt / sqr(_dx);
-                float near_phi = _liquid_phi(i, j, k - 1);
-                if(near_phi < 0) {
-                    _matrix.add_to_element(index, index, term);
-                    _matrix.add_to_element(index, index - _isize*_jsize, -term);
-                } else {
-                    float theta = fraction_inside(centre_phi, near_phi);
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
-                    }
-                    _matrix.add_to_element(index, index, term / theta);
-                }
-                _rhs[index] += _w_weights(i, j, k) * _MACVelocity.W(i, j, k) / _dx;
             }
         }
     }
 
-    //Solve the system using Robert Bridson's incomplete Cholesky PCG solver
+    PressureSolverParameters params;
+    params.cellwidth = _dx;
+    params.density = 1.0;
+    params.deltaTime = dt;
+    params.pressureCells = &pressureCells;
+    params.velocityField = &_MACVelocity;
+    params.liquidSDF = &_liquid_phi;
+    params.uWeights = &_u_weights;
+    params.vWeights = &_v_weights;
+    params.wWeights = &_w_weights;
 
-    double tolerance;
-    int iterations;
-    _solver.set_solver_parameters(1e-18, 1000);
-    bool success = _solver.solve(_matrix, _rhs, _pressure, tolerance, iterations);
-    printf("Solver took %d iterations and had residual %e\n", iterations, tolerance);
-    if(!success) {
-        printf("WARNING: _pressure solve failed!************************************************\n");
-    }
+    PressureSolver solver;
+    _pressureGrid = solver.solve(params);
 
     //Apply the velocity update
     _u_valid.fill(false);
@@ -562,7 +460,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
 
-                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
+                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_u_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i - 1, j, k) >= 0) {
@@ -571,7 +469,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-1]) / _dx / theta;
+                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i-1, j, k)) / _dx / theta;
                     _MACVelocity.setU(i, j, k, v);
                     _u_valid.set(i, j, k, true);
                 }
@@ -585,7 +483,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
+                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_v_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j - 1, k) >= 0) {
@@ -594,7 +492,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-_isize]) / _dx / theta;
+                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i, j-1, k)) / _dx / theta;
                     _MACVelocity.setV(i, j, k, v);
                     _v_valid.set(i, j, k, true);
                 }
@@ -608,7 +506,7 @@ void FluidSim::_solve_pressure(float dt) {
         for(int j = 0; j < _jsize; ++j) {
             for(int i = 1; i < _isize; ++i) {
 
-                int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
+                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_w_weights(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
                     float theta = 1;
                     if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j, k - 1) >= 0) {
@@ -617,7 +515,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(_pressure[index] - _pressure[index-_isize*_jsize]) / _dx / theta;
+                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i, j, k-1)) / _dx / theta;
                     _MACVelocity.setW(i, j, k, v);
                     _w_valid.set(i, j, k, true);
                 }

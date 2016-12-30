@@ -1,14 +1,12 @@
 #ifndef FLUIDSIM_H
 #define FLUIDSIM_H
 
-#include "pcgsolver/sparse_matrix.h"
-#include "pcgsolver/pcg_solver.h"
-
 #include "vmath.h"
 #include "array3d.h"
 #include "grid3d.h"
 #include "macvelocityfield.h"
 #include "interpolation.h"
+#include "pressuresolver.h"
 
 #include <vector>
 
@@ -43,6 +41,10 @@ private:
     void _solve_pressure(float dt);
     void _compute_phi();
 
+    inline double _randomDouble(double min, double max) {
+        return min + (double)rand() / ((double)RAND_MAX / (max - min));
+    }
+
     //Grid dimensions
     int _isize;
     int _jsize;
@@ -62,11 +64,7 @@ private:
 
     Array3d<float> _liquid_phi;
 
-    //Solver data
-    PCGSolver<double> _solver;
-    SparseMatrixd _matrix;
-    std::vector<double> _rhs;
-    std::vector<double> _pressure;
+    Array3d<float> _pressureGrid;
 
 };
 
