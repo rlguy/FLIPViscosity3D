@@ -38,7 +38,8 @@ private:
 
     //helpers for pressure projection
     void _compute_weights();
-    void _solve_pressure(float dt);
+    Array3d<float> _solve_pressure(float dt);
+    void _applyPressure(float dt, Array3d<float> &pressureGrid);
     void _compute_phi();
 
     inline double _randomDouble(double min, double max) {
@@ -63,8 +64,6 @@ private:
     float _particle_radius;
 
     Array3d<float> _liquid_phi;
-
-    Array3d<float> _pressureGrid;
 
 };
 

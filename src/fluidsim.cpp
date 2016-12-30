@@ -354,8 +354,8 @@ void FluidSim::_project(float dt) {
     _compute_weights();
 
     //Set up and solve the variational _pressure solve.
-    _solve_pressure(dt);
-    
+    Array3d<float> pressureGrid = _solve_pressure(dt);
+    _applyPressure(dt, pressureGrid);
 }
 
 
@@ -428,7 +428,7 @@ void FluidSim::_compute_weights() {
 }
 
 //An implementation of the variational _pressure projection solve for static geometry
-void FluidSim::_solve_pressure(float dt) {
+Array3d<float> FluidSim::_solve_pressure(float dt) {
     GridIndexVector pressureCells(_isize, _jsize, _ksize);
     for(int k = 1; k < _ksize - 1; k++) {
         for(int j = 1; j < _jsize - 1; j++) {
@@ -452,9 +452,11 @@ void FluidSim::_solve_pressure(float dt) {
     params.wWeights = &_w_weights;
 
     PressureSolver solver;
-    _pressureGrid = solver.solve(params);
+    return solver.solve(params);
+}
 
-    //Apply the velocity update
+void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
+        //Apply the velocity update
     _u_valid.fill(false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
@@ -469,7 +471,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i-1, j, k)) / _dx / theta;
+                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i-1, j, k)) / _dx / theta;
                     _MACVelocity.setU(i, j, k, v);
                     _u_valid.set(i, j, k, true);
                 }
@@ -492,7 +494,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i, j-1, k)) / _dx / theta;
+                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j-1, k)) / _dx / theta;
                     _MACVelocity.setV(i, j, k, v);
                     _v_valid.set(i, j, k, true);
                 }
@@ -515,7 +517,7 @@ void FluidSim::_solve_pressure(float dt) {
                     if(theta < 0.01f) {
                         theta = 0.01f;
                     }
-                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(_pressureGrid(i, j, k) - _pressureGrid(i, j, k-1)) / _dx / theta;
+                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j, k-1)) / _dx / theta;
                     _MACVelocity.setW(i, j, k, v);
                     _w_valid.set(i, j, k, true);
                 }
