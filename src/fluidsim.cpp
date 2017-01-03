@@ -19,7 +19,7 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     //make the particles large enough so they always appear on the grid
 
     _nodal_solid_phi = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1);
-    _liquid_phi = Array3d<float>(_isize, _jsize, _ksize);
+    _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
 }
 
@@ -289,55 +289,8 @@ void FluidSim::_advect(float dt) {
 }
 
 void FluidSim::_compute_phi() {
-    
-    //grab from particles
-    _liquid_phi.fill(3*_dx);
-    GridIndex g, gmin, gmax;
-    for(unsigned int p = 0; p < particles.size(); ++p) {
-
-        g = Grid3d::positionToGridIndex(particles[p], _dx);
-        gmin = GridIndex(fmax(0, g.i - 1), fmax(0, g.j - 1), fmax(0, g.k - 1));
-        gmax = GridIndex(fmin(g.i + 1, _isize - 1), 
-                         fmin(g.j + 1, _jsize - 1), 
-                         fmin(g.k + 1, _ksize - 1));
-
-        for(int k = gmin.k; k <= gmax.k; k++) {
-            for(int j = gmin.j; j <= gmax.j; j++) {
-                for(int i = gmin.i; i <= gmax.i; i++) {
-                    vmath::vec3 sample_pos = Grid3d::GridIndexToCellCenter(i, j, k, _dx);
-                    float test_val = vmath::length(sample_pos - particles[p]) - _particle_radius;
-                    if(test_val < _liquid_phi(i, j, k)) {
-                        _liquid_phi.set(i, j, k, test_val);
-                    }
-                }
-            }
-        }
-
-    }
-    
-    //extend phi slightly into solids (this is a simple, naive approach, but works reasonably well)
-    Array3d<float> phi_temp = _liquid_phi;
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize; i++) {
-                if(_liquid_phi(i,j,k) < 0.5*_dx) {
-                    float solid_phi_val = 0.125f*(_nodal_solid_phi(i, j, k) + 
-                                                  _nodal_solid_phi(i + 1, j, k) + 
-                                                  _nodal_solid_phi(i, j + 1, k) + 
-                                                  _nodal_solid_phi(i + 1, j + 1, k) +
-                                                  _nodal_solid_phi(i, j, k + 1) + 
-                                                  _nodal_solid_phi(i + 1, j, k + 1) + 
-                                                  _nodal_solid_phi(i, j + 1, k + 1) + 
-                                                  _nodal_solid_phi(i + 1, j + 1, k + 1));
-                    if(solid_phi_val < 0) {
-                        phi_temp.set(i, j, k, -0.5f * _dx);
-                    }
-                }
-            }
-        }
-    }
-    _liquid_phi = phi_temp;
-    
+    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, 
+                                            _nodal_solid_phi);
 }
 
 
@@ -433,7 +386,7 @@ Array3d<float> FluidSim::_solve_pressure(float dt) {
     for(int k = 1; k < _ksize - 1; k++) {
         for(int j = 1; j < _jsize - 1; j++) {
             for(int i = 1; i < _isize - 1; i++) {
-                if(_liquid_phi(i, j, k) < 0) {
+                if(_liquidSDF(i, j, k) < 0) {
                     pressureCells.push_back(i, j, k);
                 }
             }
@@ -446,7 +399,7 @@ Array3d<float> FluidSim::_solve_pressure(float dt) {
     params.deltaTime = dt;
     params.pressureCells = &pressureCells;
     params.velocityField = &_MACVelocity;
-    params.liquidSDF = &_liquid_phi;
+    params.liquidSDF = &_liquidSDF;
     params.weightGrid = &_weightGrid;
 
     PressureSolver solver;
@@ -461,13 +414,11 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 1; i < _isize; i++) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_weightGrid.U(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i - 1, j, k) < 0)) {
+                if(_weightGrid.U(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i - 1, j, k) < 0)) {
                     float theta = 1;
-                    if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i - 1, j, k) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquid_phi(i-1,j,k), _liquid_phi(i,j,k));
-                    }
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
+                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i - 1, j, k) >= 0) {
+                        theta = LevelsetUtils::fractionInside(_liquidSDF(i - 1, j, k), _liquidSDF(i, j, k));
+                        theta = fmin(theta, _minfrac);
                     }
                     double v = _MACVelocity.U(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i-1, j, k)) / _dx / theta;
                     _MACVelocity.setU(i, j, k, v);
@@ -484,13 +435,11 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 0; i < _isize; i++) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_weightGrid.V(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j - 1, k) < 0)) {
-                    float theta = 1;
-                    if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j - 1, k) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquid_phi(i, j - 1, k), _liquid_phi(i, j, k));
-                    }
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
+                if(_weightGrid.V(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j - 1, k) < 0)) {
+                    float theta = 1.0;
+                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j - 1, k) >= 0) {
+                        theta = LevelsetUtils::fractionInside(_liquidSDF(i, j - 1, k), _liquidSDF(i, j, k));
+                        theta = fmin(theta, _minfrac);
                     }
                     double v = _MACVelocity.V(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j-1, k)) / _dx / theta;
                     _MACVelocity.setV(i, j, k, v);
@@ -507,13 +456,11 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
             for(int i = 1; i < _isize; ++i) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
-                if(_weightGrid.W(i, j, k) > 0 && (_liquid_phi(i, j, k) < 0 || _liquid_phi(i, j, k - 1) < 0)) {
-                    float theta = 1;
-                    if(_liquid_phi(i, j, k) >= 0 || _liquid_phi(i, j, k - 1) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquid_phi(i, j, k - 1), _liquid_phi(i, j, k));
-                    }
-                    if(theta < 0.01f) {
-                        theta = 0.01f;
+                if(_weightGrid.W(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j, k - 1) < 0)) {
+                    float theta = 1.0;
+                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j, k - 1) >= 0) {
+                        theta = LevelsetUtils::fractionInside(_liquidSDF(i, j, k - 1), _liquidSDF(i, j, k));
+                        theta = fmin(theta, _minfrac);
                     }
                     double v = _MACVelocity.W(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j, k-1)) / _dx / theta;
                     _MACVelocity.setW(i, j, k, v);

@@ -5,6 +5,7 @@
 #include "array3d.h"
 #include "grid3d.h"
 #include "macvelocityfield.h"
+#include "particlelevelset.h"
 #include "interpolation.h"
 #include "pressuresolver.h"
 
@@ -62,7 +63,8 @@ private:
 
     float _particle_radius;
 
-    Array3d<float> _liquid_phi;
+    ParticleLevelSet _liquidSDF;
+
     WeightGrid _weightGrid;
 
 };

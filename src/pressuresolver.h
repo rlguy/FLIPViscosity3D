@@ -44,6 +44,7 @@ freely, subject to the following restrictions:
 #include "gridindexvector.h"
 #include "fluidsimassert.h"
 #include "levelsetutils.h"
+#include "particlelevelset.h"
 
 struct WeightGrid {
     Array3d<float> U;
@@ -65,7 +66,7 @@ struct PressureSolverParameters {
 
     GridIndexVector *pressureCells;
     MACVelocityField *velocityField;
-    Array3d<float> *liquidSDF;
+    ParticleLevelSet *liquidSDF;
     WeightGrid *weightGrid;
 
     //LogFile *logfile;
@@ -192,7 +193,7 @@ private:
 
     GridIndexVector *_pressureCells;
     MACVelocityField *_vField;
-    Array3d<float> *_liquidSDF;
+    ParticleLevelSet *_liquidSDF;
     WeightGrid *_weightGrid;
 
     //LogFile *_logfile;
