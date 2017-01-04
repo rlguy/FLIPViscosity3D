@@ -50,10 +50,10 @@ float ParticleLevelSet::get(GridIndex g) {
 
 void ParticleLevelSet::calculateSignedDistanceField(std::vector<vmath::vec3> &particles, 
                                                     double radius,
-                                                    Array3d<float> &solidPhi) {
-    FLUIDSIM_ASSERT(solidPhi.width == _isize + 1 && 
-                    solidPhi.height == _jsize + 1 && 
-                    solidPhi.depth == _ksize + 1);
+                                                    MeshLevelSet &solidPhi) {
+    int si, sj, sk;
+    solidPhi.getGridDimensions(&si, &sj, &sk);
+    FLUIDSIM_ASSERT(si == _isize && sj == _jsize && sk == _ksize);
 
     _computeSignedDistanceFromParticles(particles, radius);
     _extrapolateSignedDistanceIntoSolids(solidPhi);
@@ -92,20 +92,12 @@ void ParticleLevelSet::_computeSignedDistanceFromParticles(std::vector<vmath::ve
     }
 }
 
-void ParticleLevelSet::_extrapolateSignedDistanceIntoSolids(Array3d<float> &solidPhi) {
+void ParticleLevelSet::_extrapolateSignedDistanceIntoSolids(MeshLevelSet &solidPhi) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if(_phi(i, j, k) < 0.5 * _dx) {
-                    float sdist = 0.125f * (solidPhi(i, j, k) + 
-                                            solidPhi(i + 1, j, k) + 
-                                            solidPhi(i, j + 1, k) + 
-                                            solidPhi(i + 1, j + 1, k) +
-                                            solidPhi(i, j, k + 1) + 
-                                            solidPhi(i + 1, j, k + 1) + 
-                                            solidPhi(i, j + 1, k + 1) + 
-                                            solidPhi(i + 1, j + 1, k + 1));
-                    if(sdist < 0) {
+                    if(solidPhi.getDistanceAtCellCenter(i, j, k) < 0) {
                         _phi.set(i, j, k, -0.5f * _dx);
                     }
                 }

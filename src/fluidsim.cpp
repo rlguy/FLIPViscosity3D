@@ -18,23 +18,16 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     //make the particles large enough so they always appear on the grid
 
-    _nodal_solid_phi = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1);
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
 }
 
 //Initialize the grid-based signed distance field that dictates the position of the solid boundary
-void FluidSim::set_boundary(float (*phi)(vmath::vec3)) {
-
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                vmath::vec3 pos(i * _dx, j * _dx, k * _dx);
-                _nodal_solid_phi.set(i, j, k, phi(pos));
-            }
-        }
-    }
-
+void FluidSim::set_boundary(MeshLevelSet &boundary) {
+    int bi, bj, bk;
+    boundary.getGridDimensions(&bi, &bj, &bk);
+    FLUIDSIM_ASSERT(bi == _isize && bj == _jsize && bk == _ksize);
+    _solidSDF = boundary;
 }
 
 void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
@@ -52,7 +45,7 @@ void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
                     vmath::vec3 pos = gpos + jitter;
 
                     if(phi(pos) <= -_particle_radius) {
-                        float solid_phi = Interpolation::trilinearInterpolate(pos, _dx, _nodal_solid_phi);
+                        float solid_phi = _solidSDF.trilinearInterpolate(pos);
                         if(solid_phi >= 0) {
                             particles.push_back(pos);
                         }
@@ -174,8 +167,7 @@ void FluidSim::_constrain_velocity() {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal(0,0,0);
-                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -193,8 +185,7 @@ void FluidSim::_constrain_velocity() {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal(0,0,0);
-                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -212,8 +203,7 @@ void FluidSim::_constrain_velocity() {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
                     vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal(0,0,0);
-                    Interpolation::trilinearInterpolateGradient(pos, _dx, _nodal_solid_phi, &normal);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
                     vel -= perp_component*normal;
@@ -233,10 +223,9 @@ void FluidSim::_advect_particles(float dt) {
         particles[p] = _trace_rk2(particles[p], dt);
     
         //check boundaries and project exterior particles back in
-        float phi_val = Interpolation::trilinearInterpolate(particles[p], _dx, _nodal_solid_phi); 
+        float phi_val = _solidSDF.trilinearInterpolate(particles[p]);; 
         if(phi_val < 0) {
-            vmath::vec3 grad;
-            Interpolation::trilinearInterpolateGradient(particles[p], _dx, _nodal_solid_phi, &grad);
+            vmath::vec3 grad = _solidSDF.trilinearInterpolateGradient(particles[p]);
             if(vmath::lengthsq(grad) > 0) {
                 grad = vmath::normalize(grad);
             }
@@ -289,8 +278,7 @@ void FluidSim::_advect(float dt) {
 }
 
 void FluidSim::_compute_phi() {
-    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, 
-                                            _nodal_solid_phi);
+    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, _solidSDF);
 }
 
 
@@ -337,10 +325,10 @@ void FluidSim::_compute_weights() {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
                 float weight = 1 - LevelsetUtils::fractionInside(
-                                        _nodal_solid_phi(i, j, k), 
-                                        _nodal_solid_phi(i, j + 1, k),
-                                        _nodal_solid_phi(i, j, k + 1), 
-                                        _nodal_solid_phi(i, j + 1, k + 1));
+                                        _solidSDF(i, j, k), 
+                                        _solidSDF(i, j + 1, k),
+                                        _solidSDF(i, j, k + 1), 
+                                        _solidSDF(i, j + 1, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.U.set(i, j, k, weight);
@@ -352,10 +340,10 @@ void FluidSim::_compute_weights() {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
                 float weight = 1 - LevelsetUtils::fractionInside(
-                                       _nodal_solid_phi(i, j, k),
-                                       _nodal_solid_phi(i, j, k + 1),
-                                       _nodal_solid_phi(i + 1, j, k),
-                                       _nodal_solid_phi(i + 1, j, k + 1));
+                                       _solidSDF(i, j, k),
+                                       _solidSDF(i, j, k + 1),
+                                       _solidSDF(i + 1, j, k),
+                                       _solidSDF(i + 1, j, k + 1));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.V.set(i, j, k, weight);
@@ -367,10 +355,10 @@ void FluidSim::_compute_weights() {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 float weight = 1 - LevelsetUtils::fractionInside(
-                                        _nodal_solid_phi(i, j, k),
-                                        _nodal_solid_phi(i, j + 1, k),
-                                        _nodal_solid_phi(i + 1, j, k),
-                                        _nodal_solid_phi(i + 1, j + 1, k));
+                                        _solidSDF(i, j, k),
+                                        _solidSDF(i, j + 1, k),
+                                        _solidSDF(i + 1, j, k),
+                                        _solidSDF(i + 1, j + 1, k));
                 weight = fmax(weight, 0.0);
                 weight = fmin(weight, 1.0);
                 _weightGrid.W.set(i, j, k, weight);
@@ -418,7 +406,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                     float theta = 1;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i - 1, j, k) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i - 1, j, k), _liquidSDF(i, j, k));
-                        theta = fmin(theta, _minfrac);
+                        theta = fmax(theta, _minfrac);
                     }
                     double v = _MACVelocity.U(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i-1, j, k)) / _dx / theta;
                     _MACVelocity.setU(i, j, k, v);
@@ -439,7 +427,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j - 1, k) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i, j - 1, k), _liquidSDF(i, j, k));
-                        theta = fmin(theta, _minfrac);
+                        theta = fmax(theta, _minfrac);
                     }
                     double v = _MACVelocity.V(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j-1, k)) / _dx / theta;
                     _MACVelocity.setV(i, j, k, v);
@@ -451,16 +439,16 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     }
 
     _w_valid.fill(false);
-    for(int k = 0; k < _ksize; ++k) {
-        for(int j = 0; j < _jsize; ++j) {
-            for(int i = 1; i < _isize; ++i) {
+    for(int k = 1; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.W(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j, k - 1) < 0)) {
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j, k - 1) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i, j, k - 1), _liquidSDF(i, j, k));
-                        theta = fmin(theta, _minfrac);
+                        theta = fmax(theta, _minfrac);
                     }
                     double v = _MACVelocity.W(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j, k-1)) / _dx / theta;
                     _MACVelocity.setW(i, j, k, v);

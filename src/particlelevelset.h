@@ -24,6 +24,7 @@ freely, subject to the following restrictions:
 
 #include "array3d.h"
 #include "grid3d.h"
+#include "meshlevelset.h"
 #include "fluidsimassert.h"
 
 class ParticleLevelSet {
@@ -40,14 +41,14 @@ public:
 
     void calculateSignedDistanceField(std::vector<vmath::vec3> &particles, 
                                       double radius,
-                                      Array3d<float> &solidPhi);
+                                      MeshLevelSet &solidPhi);
 
 private:
 
     float _getMaxDistance();
     void _computeSignedDistanceFromParticles(std::vector<vmath::vec3> &particles, 
                                              double radius);
-    void _extrapolateSignedDistanceIntoSolids(Array3d<float> &solidPhi);
+    void _extrapolateSignedDistanceIntoSolids(MeshLevelSet &solidPhi);
     
     int _isize = 0;
     int _jsize = 0;

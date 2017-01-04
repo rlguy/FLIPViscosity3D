@@ -8,6 +8,7 @@
 #include "particlelevelset.h"
 #include "interpolation.h"
 #include "pressuresolver.h"
+#include "meshlevelset.h"
 
 #include <vector>
 
@@ -15,7 +16,7 @@ class FluidSim {
 
 public:
     void initialize(int i, int j, int k, float width);
-    void set_boundary(float (*phi)(vmath::vec3));
+    void set_boundary(MeshLevelSet &boundary);
     void set_liquid(float (*phi)(vmath::vec3));
     void add_particle(vmath::vec3 pos);
 
@@ -57,15 +58,15 @@ private:
     MACVelocityField _MACVelocity;
     MACVelocityField _tempMACVelocity;
     
-    //Static geometry representation
-    Array3d<float> _nodal_solid_phi;
     Array3d<bool> _u_valid, _v_valid, _w_valid;
 
+    MeshLevelSet _solidSDF;
+    ParticleLevelSet _liquidSDF;
     float _particle_radius;
 
-    ParticleLevelSet _liquidSDF;
-
     WeightGrid _weightGrid;
+
+    double _minfrac = 0.01f;
 
 };
 
