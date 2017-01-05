@@ -86,6 +86,42 @@ vmath::vec3 MeshLevelSet::trilinearInterpolateGradient(vmath::vec3 pos) {
     return grad;
 }
 
+float MeshLevelSet::getFaceWeightU(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize + 1, _jsize, _ksize));
+    return LevelsetUtils::fractionInside(_phi(i, j, k), 
+                                         _phi(i, j + 1, k),
+                                         _phi(i, j, k + 1), 
+                                         _phi(i, j + 1, k + 1));
+}
+
+float MeshLevelSet::getFaceWeightU(GridIndex g) {
+    return getFaceWeightU(g.i, g.j, g.k);
+}
+
+float MeshLevelSet::getFaceWeightV(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize, _jsize + 1, _ksize));
+    return LevelsetUtils::fractionInside(_phi(i, j, k),
+                                         _phi(i, j, k + 1),
+                                         _phi(i + 1, j, k),
+                                         _phi(i + 1, j, k + 1));
+}
+
+float MeshLevelSet::getFaceWeightV(GridIndex g) {
+    return getFaceWeightV(g.i, g.j, g.k);
+}
+
+float MeshLevelSet::getFaceWeightW(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize, _jsize, _ksize + 1));
+    return LevelsetUtils::fractionInside(_phi(i, j, k),
+                                         _phi(i, j + 1, k),
+                                         _phi(i + 1, j, k),
+                                         _phi(i + 1, j + 1, k));
+}
+
+float MeshLevelSet::getFaceWeightW(GridIndex g) {
+    return getFaceWeightW(g.i, g.j, g.k);
+}
+
 void MeshLevelSet::getGridDimensions(int *i, int *j, int *k) {
     *i = _isize;
     *j = _jsize;

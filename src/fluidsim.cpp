@@ -324,13 +324,8 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                float weight = 1 - LevelsetUtils::fractionInside(
-                                        _solidSDF(i, j, k), 
-                                        _solidSDF(i, j + 1, k),
-                                        _solidSDF(i, j, k + 1), 
-                                        _solidSDF(i, j + 1, k + 1));
-                weight = fmax(weight, 0.0);
-                weight = fmin(weight, 1.0);
+                float weight = 1.0f - _solidSDF.getFaceWeightU(i, j, k);
+                weight = _clamp(weight, 0.0f, 1.0f);
                 _weightGrid.U.set(i, j, k, weight);
             }
         }
@@ -339,13 +334,8 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                float weight = 1 - LevelsetUtils::fractionInside(
-                                       _solidSDF(i, j, k),
-                                       _solidSDF(i, j, k + 1),
-                                       _solidSDF(i + 1, j, k),
-                                       _solidSDF(i + 1, j, k + 1));
-                weight = fmax(weight, 0.0);
-                weight = fmin(weight, 1.0);
+                float weight = 1.0f - _solidSDF.getFaceWeightV(i, j, k);
+                weight = _clamp(weight, 0.0f, 1.0f);
                 _weightGrid.V.set(i, j, k, weight);
             }
         }
@@ -354,13 +344,8 @@ void FluidSim::_compute_weights() {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
-                float weight = 1 - LevelsetUtils::fractionInside(
-                                        _solidSDF(i, j, k),
-                                        _solidSDF(i, j + 1, k),
-                                        _solidSDF(i + 1, j, k),
-                                        _solidSDF(i + 1, j + 1, k));
-                weight = fmax(weight, 0.0);
-                weight = fmin(weight, 1.0);
+                float weight = 1.0f - _solidSDF.getFaceWeightW(i, j, k);
+                weight = _clamp(weight, 0.0f, 1.0f);
                 _weightGrid.W.set(i, j, k, weight);
             }
         }
