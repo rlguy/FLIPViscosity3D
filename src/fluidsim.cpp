@@ -84,6 +84,9 @@ void FluidSim::advance(float dt) {
         printf(" Surface (particle) advection\n");
         _advect_particles(substep);
 
+        printf(" Compute liquid signed distance field\n");
+        _updateLiquidSDF();
+
         printf(" Velocity advection\n");
         //Advance the velocity
         _advect(substep);
@@ -204,17 +207,26 @@ void FluidSim::add_particle(vmath::vec3 pos) {
 }
 
 void FluidSim::_add_force(float dt) {
-
-    //gravity
-    for(int k = 0;k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
+    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
-                double v = _MACVelocity.V(i, j, k);
-                _MACVelocity.setV(i, j, k, v - 9.81f * dt);
+                if (_liquidSDF(i, j, k) < 0.0) {
+                    mgrid.setFluid(i, j, k);
+                }
             }
         }
     }
 
+    for(int k = 0;k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if (mgrid.isFaceBorderingFluidV(i, j, k)) {
+                    _MACVelocity.addV(i, j, k, -9.81f * dt);
+                }
+            }
+        }
+    }
 }
 
 
@@ -311,18 +323,34 @@ void FluidSim::_advect_particles(float dt) {
     
 }
 
+void FluidSim::_updateLiquidSDF() {
+    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, _solidSDF);
+}
+
 //Basic first order semi-Lagrangian advection of velocities
 void FluidSim::_advect(float dt) {
 
+    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if (_liquidSDF(i, j, k) < 0.0) {
+                    mgrid.setFluid(i, j, k);
+                }
+            }
+        }
+    }
     _tempMACVelocity.clear();
 
     //semi-Lagrangian advection on u-component of velocity
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                pos = _trace_rk2(pos, -dt);
-                _tempMACVelocity.setU(i, j, k, _get_velocity(pos).x);  
+                if (mgrid.isFaceBorderingFluidU(i, j, k)) {
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
+                    pos = _trace_rk2(pos, -dt);
+                    _tempMACVelocity.setU(i, j, k, _get_velocity(pos).x); 
+                } 
             }
         }
     }
@@ -331,9 +359,11 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                pos = _trace_rk2(pos, -dt);
-                _tempMACVelocity.setV(i, j, k, _get_velocity(pos).y);
+                if (mgrid.isFaceBorderingFluidV(i, j, k)) {
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
+                    pos = _trace_rk2(pos, -dt);
+                    _tempMACVelocity.setV(i, j, k, _get_velocity(pos).y);
+                }
             }
         }
     }
@@ -342,9 +372,11 @@ void FluidSim::_advect(float dt) {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
-                vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                pos = _trace_rk2(pos, -dt);
-                _tempMACVelocity.setW(i, j, k, _get_velocity(pos).z);
+                if (mgrid.isFaceBorderingFluidW(i, j, k)) {
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
+                    pos = _trace_rk2(pos, -dt);
+                    _tempMACVelocity.setW(i, j, k, _get_velocity(pos).z);
+                }
             }
         }
     }
@@ -353,17 +385,8 @@ void FluidSim::_advect(float dt) {
     _MACVelocity.set(_tempMACVelocity);
 }
 
-void FluidSim::_compute_phi() {
-    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, _solidSDF);
-}
-
-
 
 void FluidSim::_project(float dt) {
-
-    //Estimate the liquid signed distance
-    _compute_phi();
-    
     //Compute finite-volume type face area weight for each velocity sample.
     _compute_weights();
 

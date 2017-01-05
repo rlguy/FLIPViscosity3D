@@ -36,6 +36,7 @@ private:
     vmath::vec3 _get_velocity(vmath::vec3 position);
 
     void _advect_particles(float dt);
+    void _updateLiquidSDF();
     void _advect(float dt);
     void _add_force(float dt);
     void _project(float dt);
@@ -46,7 +47,6 @@ private:
     void _compute_weights();
     Array3d<float> _solve_pressure(float dt);
     void _applyPressure(float dt, Array3d<float> &pressureGrid);
-    void _compute_phi();
 
     inline double _randomDouble(double min, double max) {
         return min + (double)rand() / ((double)RAND_MAX / (max - min));
