@@ -10,12 +10,10 @@ void FluidSim::initialize(int i, int j, int k, float width) {
 
     _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
     _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
-
     _validVelocities = ValidVelocityComponentGrid(_isize, _jsize, _ksize);
 
     //make the particles large enough so they always appear on the grid
-    _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
-
+    _particleRadius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
 
@@ -63,7 +61,7 @@ void FluidSim::addLiquid(TriangleMesh &mesh) {
                     vmath::vec3 jitter = vmath::vec3(a, b, c);
                     vmath::vec3 pos = gpos + jitter;
 
-                    if(meshSDF.trilinearInterpolate(pos) <= -_particle_radius) {
+                    if(meshSDF.trilinearInterpolate(pos) <= -_particleRadius) {
                         float solid_phi = _solidSDF.trilinearInterpolate(pos);
                         if(solid_phi >= 0) {
                             particles.push_back(pos);
@@ -88,17 +86,17 @@ void FluidSim::advance(float dt) {
         printf("Taking substep of size %f (to %0.3f%% of the frame)\n", substep, 100 * (t+substep)/dt);
         
         printf(" Surface (particle) advection\n");
-        _advect_particles(substep);
+        _advectParticles(substep);
 
         printf(" Compute liquid signed distance field\n");
         _updateLiquidSDF();
 
         printf(" Velocity advection\n");
         //Advance the velocity
-        _advect(substep);
-        _add_force(substep);
+        _advectVelocityField(substep);
+        _addBodyForce(substep);
 
-        printf(" _pressure projection\n");
+        printf(" Pressure projection\n");
         _project(substep); 
          
         //_pressure projection only produces valid velocities in faces with non-zero associated face area.
@@ -110,7 +108,7 @@ void FluidSim::advance(float dt) {
         //For extrapolated velocities, replace the normal component with
         //that of the object.
         printf(" Constrain boundary velocities\n");
-        _constrain_velocity();
+        _constrainVelocityField();
 
         t += substep;
     }
@@ -203,11 +201,7 @@ float FluidSim::_cfl() {
     return 5*_dx / maxvel;
 }
 
-void FluidSim::add_particle(vmath::vec3 pos) {
-    particles.push_back(pos);
-}
-
-void FluidSim::_add_force(float dt) {
+void FluidSim::_addBodyForce(float dt) {
     FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
@@ -231,13 +225,13 @@ void FluidSim::_add_force(float dt) {
 }
 
 
-void FluidSim::_advect_particles(float dt) {
+void FluidSim::_advectParticles(float dt) {
 
     AABB boundary(0.0, 0.0, 0.0, _isize * _dx, _jsize *_dx, _ksize * _dx);
     boundary.expand(-2 * _dx - 1e-4);
 
     for(unsigned int p = 0; p < particles.size(); p++) {
-        particles[p] = _trace_rk2(particles[p], dt);
+        particles[p] = _traceRK2(particles[p], dt);
     
         //check boundaries and project exterior particles back in
         float phi_val = _solidSDF.trilinearInterpolate(particles[p]);; 
@@ -257,11 +251,11 @@ void FluidSim::_advect_particles(float dt) {
 }
 
 void FluidSim::_updateLiquidSDF() {
-    _liquidSDF.calculateSignedDistanceField(particles, _particle_radius, _solidSDF);
+    _liquidSDF.calculateSignedDistanceField(particles, _particleRadius, _solidSDF);
 }
 
 //Basic first order semi-Lagrangian advection of velocities
-void FluidSim::_advect(float dt) {
+void FluidSim::_advectVelocityField(float dt) {
 
     FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
     for(int k = 0; k < _ksize; k++) {
@@ -281,8 +275,8 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize + 1; i++) {
                 if (mgrid.isFaceBorderingFluidU(i, j, k)) {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                    pos = _trace_rk2(pos, -dt);
-                    _tempMACVelocity.setU(i, j, k, _get_velocity(pos).x); 
+                    pos = _traceRK2(pos, -dt);
+                    _tempMACVelocity.setU(i, j, k, _getVelocity(pos).x); 
                 } 
             }
         }
@@ -294,8 +288,8 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize; i++) {
                 if (mgrid.isFaceBorderingFluidV(i, j, k)) {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                    pos = _trace_rk2(pos, -dt);
-                    _tempMACVelocity.setV(i, j, k, _get_velocity(pos).y);
+                    pos = _traceRK2(pos, -dt);
+                    _tempMACVelocity.setV(i, j, k, _getVelocity(pos).y);
                 }
             }
         }
@@ -307,8 +301,8 @@ void FluidSim::_advect(float dt) {
             for(int i = 0; i < _isize; i++) {
                 if (mgrid.isFaceBorderingFluidW(i, j, k)) {
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                    pos = _trace_rk2(pos, -dt);
-                    _tempMACVelocity.setW(i, j, k, _get_velocity(pos).z);
+                    pos = _traceRK2(pos, -dt);
+                    _tempMACVelocity.setW(i, j, k, _getVelocity(pos).z);
                 }
             }
         }
@@ -321,25 +315,25 @@ void FluidSim::_advect(float dt) {
 
 void FluidSim::_project(float dt) {
     //Compute finite-volume type face area weight for each velocity sample.
-    _compute_weights();
+    _computeWeights();
 
     //Set up and solve the variational _pressure solve.
-    Array3d<float> pressureGrid = _solve_pressure(dt);
+    Array3d<float> pressureGrid = _solvePressure(dt);
     _applyPressure(dt, pressureGrid);
 }
 
 
 //Apply RK2 to advect a point in the domain.
-vmath::vec3 FluidSim::_trace_rk2(vmath::vec3 position, float dt) {
+vmath::vec3 FluidSim::_traceRK2(vmath::vec3 position, float dt) {
     vmath::vec3 input = position;
-    vmath::vec3 velocity = _get_velocity(input);
-    velocity = _get_velocity(input + 0.5f * dt * velocity);
+    vmath::vec3 velocity = _getVelocity(input);
+    velocity = _getVelocity(input + 0.5f * dt * velocity);
     input += dt * velocity;
     return input;
 }
 
 //Interpolate velocity from the MAC grid.
-vmath::vec3 FluidSim::_get_velocity(vmath::vec3 position) {
+vmath::vec3 FluidSim::_getVelocity(vmath::vec3 position) {
     float u_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0, 0.5*_dx, 0.5*_dx), _dx, *(_MACVelocity.getArray3dU()));
     float v_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0, 0.5*_dx), _dx, *(_MACVelocity.getArray3dV()));
     float w_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0.5*_dx, 0), _dx, *(_MACVelocity.getArray3dW()));
@@ -350,7 +344,7 @@ vmath::vec3 FluidSim::_get_velocity(vmath::vec3 position) {
 
 
 //Compute finite-volume style face-weights for fluid from nodal signed distances
-void FluidSim::_compute_weights() {
+void FluidSim::_computeWeights() {
 
     //Compute face area fractions (using marching squares cases).
     for(int k = 0; k < _ksize; k++) {
@@ -386,7 +380,7 @@ void FluidSim::_compute_weights() {
 }
 
 //An implementation of the variational _pressure projection solve for static geometry
-Array3d<float> FluidSim::_solve_pressure(float dt) {
+Array3d<float> FluidSim::_solvePressure(float dt) {
     GridIndexVector pressureCells(_isize, _jsize, _ksize);
     for(int k = 1; k < _ksize - 1; k++) {
         for(int j = 1; j < _jsize - 1; j++) {
@@ -421,12 +415,15 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.U(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i - 1, j, k) < 0)) {
+                    float p0 = pressureGrid(i-1, j, k);
+                    float p1 = pressureGrid(i, j, k);
+
                     float theta = 1;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i - 1, j, k) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i - 1, j, k), _liquidSDF(i, j, k));
                         theta = fmax(theta, _minfrac);
                     }
-                    double v = _MACVelocity.U(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i-1, j, k)) / _dx / theta;
+                    double v = _MACVelocity.U(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setU(i, j, k, v);
                     _validVelocities.validU.set(i, j, k, true);
                 }
@@ -441,12 +438,15 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.V(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j - 1, k) < 0)) {
+                    float p0 = pressureGrid(i, j - 1, k);
+                    float p1 = pressureGrid(i, j, k);
+
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j - 1, k) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i, j - 1, k), _liquidSDF(i, j, k));
                         theta = fmax(theta, _minfrac);
                     }
-                    double v = _MACVelocity.V(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j-1, k)) / _dx / theta;
+                    double v = _MACVelocity.V(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setV(i, j, k, v);
                     _validVelocities.validV.set(i, j, k, true);
                 }
@@ -461,12 +461,15 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
 
                 //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.W(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j, k - 1) < 0)) {
+                    float p0 = pressureGrid(i, j, k - 1);
+                    float p1 = pressureGrid(i, j, k);
+
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j, k - 1) >= 0) {
                         theta = LevelsetUtils::fractionInside(_liquidSDF(i, j, k - 1), _liquidSDF(i, j, k));
                         theta = fmax(theta, _minfrac);
                     }
-                    double v = _MACVelocity.W(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j, k-1)) / _dx / theta;
+                    double v = _MACVelocity.W(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setW(i, j, k, v);
                     _validVelocities.validW.set(i, j, k, true);
                 }
@@ -512,7 +515,7 @@ void FluidSim::_extrapolateVelocityField() {
 
 //For extrapolated points, replace the normal component
 //of velocity with the object velocity (in this case zero).
-void FluidSim::_constrain_velocity() {
+void FluidSim::_constrainVelocityField() {
     _tempMACVelocity.set(_MACVelocity);
 
     //(At lower grid resolutions, the normal estimate from the signed
@@ -526,7 +529,7 @@ void FluidSim::_constrain_velocity() {
                 if(_weightGrid.U(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 vel = _getVelocity(pos);
                     vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
@@ -544,7 +547,7 @@ void FluidSim::_constrain_velocity() {
                 if(_weightGrid.V(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 vel = _getVelocity(pos);
                     vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);
@@ -562,7 +565,7 @@ void FluidSim::_constrain_velocity() {
                 if(_weightGrid.W(i, j, k) == 0) {
                     //apply constraint
                     vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 vel = _getVelocity(pos);
                     vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
                     normal = vmath::normalize(normal);
                     float perp_component = vmath::dot(vel, normal);

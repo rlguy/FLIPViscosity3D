@@ -20,8 +20,6 @@ public:
     void addBoundary(TriangleMesh &boundary, bool isInverted = false);
     void resetBoundary();
     void addLiquid(TriangleMesh &mesh);
-    void add_particle(vmath::vec3 pos);
-
     void advance(float dt);
 
     std::vector<vmath::vec3> particles;
@@ -30,22 +28,22 @@ private:
     TriangleMesh _getTriangleMeshFromAABB(AABB bbox);
     TriangleMesh _getBoundaryTriangleMesh();
     void _initializeBoundary();
-    vmath::vec3 _trace_rk2(vmath::vec3 position, float dt);
+    vmath::vec3 _traceRK2(vmath::vec3 position, float dt);
 
     float _cfl();
-    vmath::vec3 _get_velocity(vmath::vec3 position);
+    vmath::vec3 _getVelocity(vmath::vec3 position);
 
-    void _advect_particles(float dt);
+    void _advectParticles(float dt);
     void _updateLiquidSDF();
-    void _advect(float dt);
-    void _add_force(float dt);
+    void _advectVelocityField(float dt);
+    void _addBodyForce(float dt);
     void _project(float dt);
     void _extrapolateVelocityField();
-    void _constrain_velocity();
+    void _constrainVelocityField();
 
     //helpers for pressure projection
-    void _compute_weights();
-    Array3d<float> _solve_pressure(float dt);
+    void _computeWeights();
+    Array3d<float> _solvePressure(float dt);
     void _applyPressure(float dt, Array3d<float> &pressureGrid);
 
     inline double _randomDouble(double min, double max) {
@@ -74,7 +72,7 @@ private:
     double _meshLevelSetExactBand = 3;
 
     ParticleLevelSet _liquidSDF;
-    float _particle_radius;
+    float _particleRadius;
 
     WeightGrid _weightGrid;
 
