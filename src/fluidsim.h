@@ -40,8 +40,8 @@ private:
     void _advect(float dt);
     void _add_force(float dt);
     void _project(float dt);
+    void _extrapolateVelocityField();
     void _constrain_velocity();
-    void _extrapolate(Array3d<float> *grid, Array3d<bool> &valid);
 
     //helpers for pressure projection
     void _compute_weights();
@@ -67,7 +67,8 @@ private:
     MACVelocityField _MACVelocity;
     MACVelocityField _tempMACVelocity;
     
-    Array3d<bool> _u_valid, _v_valid, _w_valid;
+    ValidVelocityComponentGrid _validVelocities;
+    int _numExtrapolationLayers = 10;
 
     MeshLevelSet _solidSDF;
     double _meshLevelSetExactBand = 3;

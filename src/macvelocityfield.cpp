@@ -604,222 +604,64 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtPositionLinear(double x, double 
     return vmath::vec3(xvel, yvel, zvel);
 }
 
-void MACVelocityField::_updateExtrapolationLayer(int layerIndex, 
-                                                 FluidMaterialGrid &matGrid,
-                                                 Array3d<int> &layerGrid) {
-    GridIndex neighbours[6];
-    GridIndex n;
+void MACVelocityField::_extrapolateGrid(Array3d<float> &grid, Array3d<bool> &valid, int numLayers) {
 
-    for (int k = 0; k < layerGrid.depth; k++) {
-        for (int j = 0; j < layerGrid.height; j++) {
-            for (int i = 0; i < layerGrid.width; i++) {
-                if (layerGrid(i, j, k) == layerIndex - 1) {
-                    Grid3d::getNeighbourGridIndices6(i, j, k, neighbours);
-                    for (int idx = 0; idx < 6; idx++) {
-                        n = neighbours[idx];
+    Array3d<float> tempGrid = grid;
+    Array3d<bool> oldValid;
+    for(int layers = 0; layers < numLayers; layers++) {
 
-                        if (Grid3d::isGridIndexInRange(n, _isize, _jsize, _ksize) && 
-                                layerGrid(n) == -1) {
-                            layerGrid.set(n, layerIndex);
-                        }
+        oldValid = valid;
+        for(int k = 1; k < grid.depth - 1; k++) {
+            for(int j = 1; j < grid.height - 1; j++) {
+                for(int i = 1; i < grid.width - 1; i++) {
+
+                    if(oldValid(i,j,k)) {
+                        continue;
                     }
+
+                    float sum = 0;
+                    int count = 0;
+                    if(oldValid(i + 1, j, k)) {
+                        sum += grid(i + 1, j, k);
+                        count++;
+                    }
+                    if(oldValid(i - 1, j, k)) {
+                        sum += grid(i - 1, j, k);
+                        count++;
+                    }
+                    if(oldValid(i, j + 1, k)) {
+                        sum += grid(i, j + 1, k);
+                        count++;
+                    }
+                    if(oldValid(i, j - 1, k)) {
+                        sum += grid(i, j - 1, k);
+                        count++;
+                    }
+                    if(oldValid(i, j, k + 1)) {
+                        sum += grid(i, j, k + 1);
+                        count++;
+                    }
+                    if(oldValid(i, j, k - 1)) {
+                        sum += grid(i, j, k - 1);
+                        count++;
+                    }
+                    
+                    if(count > 0) {
+                        tempGrid.set(i, j, k, sum /(float)count);
+                        valid.set(i, j, k, true);
+                    }
+
                 }
             }
         }
+        grid = tempGrid;
     }
+
 }
 
-void MACVelocityField::_updateExtrapolationLayers(FluidMaterialGrid &matGrid, 
-                                                  Array3d<int> &layerGrid) {
-
-    for (int k = 0; k < matGrid.depth; k++) {
-        for (int j = 0; j < matGrid.height; j++) {
-            for (int i = 0; i < matGrid.width; i++) {
-                if (matGrid.isCellFluid(i, j, k)) {
-                    layerGrid.set(i, j, k, 0);
-                }
-            }
-        }
-    }
-
-    for (int layer = 1; layer <= _numExtrapolationLayers; layer++) {
-        _updateExtrapolationLayer(layer, matGrid, layerGrid);
-    }
-}
-
-double MACVelocityField::_getExtrapolatedVelocityForFaceU(int i, int j, int k, int layerIdx,
-                                                          Array3d<int> &layerGrid) {
-    GridIndex n[6];
-    Grid3d::getNeighbourGridIndices6(i, j, k, n);
-
-    GridIndex c;
-    double sum = 0.0;
-    double weightsum = 0.0;
-
-    for (int idx = 0; idx < 6; idx++) {
-        c = n[idx];
-        if (isIndexInRangeU(c) && _isFaceBorderingLayerIndexU(c, layerIdx - 1, layerGrid)) {
-                sum += U(c);
-                weightsum++;
-        }
-    }
-
-    if (sum == 0.0) {
-        return 0.0;
-    }
-
-    return sum / weightsum;
-}
-
-double MACVelocityField::_getExtrapolatedVelocityForFaceV(int i, int j, int k, int layerIdx,
-                                                          Array3d<int> &layerGrid) {
-    GridIndex n[6];
-    Grid3d::getNeighbourGridIndices6(i, j, k, n);
-
-    GridIndex c;
-    double sum = 0.0;
-    double weightsum = 0.0;
-
-    for (int idx = 0; idx < 6; idx++) {
-        c = n[idx];
-        if (isIndexInRangeV(c) && _isFaceBorderingLayerIndexV(c, layerIdx - 1, layerGrid)) {
-            sum += V(c);
-            weightsum++;
-        }
-    }
-
-    if (sum == 0.0) {
-        return 0.0;
-    }
-
-    return sum / weightsum;
-}
-
-double MACVelocityField::_getExtrapolatedVelocityForFaceW(int i, int j, int k, int layerIdx,
-                                                          Array3d<int> &layerGrid) {
-    GridIndex n[6];
-    Grid3d::getNeighbourGridIndices6(i, j, k, n);
-
-    GridIndex c;
-    double sum = 0.0;
-    double weightsum = 0.0;
-
-    for (int idx = 0; idx < 6; idx++) {
-        c = n[idx];
-        if (isIndexInRangeW(c) && _isFaceBorderingLayerIndexW(c, layerIdx - 1, layerGrid)) {
-            sum += W(c);
-            weightsum++;
-        }
-    }
-
-    if (sum == 0.0) {
-        return 0.0;
-    }
-
-    return sum / weightsum;
-}
-
-void MACVelocityField::_extrapolateVelocitiesForLayerIndexU(int idx, 
-                                                            FluidMaterialGrid &matGrid,
-                                                            Array3d<int> &layerGrid) {
-    for (int k = 0; k < _ksize; k++) {
-        for (int j = 0; j < _jsize; j++) {
-            for (int i = 0; i < _isize + 1; i++) {
-                bool isExtrapolated = _isFaceBorderingLayerIndexU(i, j, k, idx, layerGrid) && 
-                                     !_isFaceBorderingLayerIndexU(i, j, k, idx-1, layerGrid);
-                if (isExtrapolated) {
-                    double v = _getExtrapolatedVelocityForFaceU(i, j, k, idx, layerGrid);
-                    setU(i, j, k, (float)v);
-                }
-            }
-        }
-    }
-}
-
-void MACVelocityField::_extrapolateVelocitiesForLayerIndexV(int idx, 
-                                                            FluidMaterialGrid &matGrid,
-                                                            Array3d<int> &layerGrid) {
-    for (int k = 0; k < _ksize; k++) {
-        for (int j = 0; j < _jsize + 1; j++) {
-            for (int i = 0; i < _isize; i++) {
-                bool isExtrapolated = _isFaceBorderingLayerIndexV(i, j, k, idx, layerGrid) && 
-                                     !_isFaceBorderingLayerIndexV(i, j, k, idx-1, layerGrid);
-                if (isExtrapolated) {
-                    double v = _getExtrapolatedVelocityForFaceV(i, j, k, idx, layerGrid);
-                    setV(i, j, k, (float)v);
-                }
-            }
-        }
-    }
-}
-
-void MACVelocityField::_extrapolateVelocitiesForLayerIndexW(int idx, 
-                                                            FluidMaterialGrid &matGrid,
-                                                            Array3d<int> &layerGrid) {
-    for (int k = 0; k < _ksize + 1; k++) {
-        for (int j = 0; j < _jsize; j++) {
-            for (int i = 0; i < _isize; i++) {
-                bool isExtrapolated = _isFaceBorderingLayerIndexW(i, j, k, idx, layerGrid) && 
-                                     !_isFaceBorderingLayerIndexW(i, j, k, idx-1, layerGrid);
-                if (isExtrapolated) {
-                    double v = _getExtrapolatedVelocityForFaceW(i, j, k, idx, layerGrid);
-                    setW(i, j, k, (float)v);
-                }
-            }
-        }
-    }
-}
-
-void MACVelocityField::_extrapolateVelocitiesForLayerIndex(int idx, 
-                                                           FluidMaterialGrid &matGrid,
-                                                           Array3d<int> &layerGrid) {
-    _extrapolateVelocitiesForLayerIndexU(idx, matGrid, layerGrid);
-    _extrapolateVelocitiesForLayerIndexV(idx, matGrid, layerGrid);
-    _extrapolateVelocitiesForLayerIndexW(idx, matGrid, layerGrid);
-}
-
-void MACVelocityField::_resetExtrapolatedFluidVelocities(FluidMaterialGrid &matGrid) {
-    for (int k = 0; k < _ksize; k++) {
-        for (int j = 0; j < _jsize; j++) {
-            for (int i = 0; i < _isize + 1; i++) {
-                if (!matGrid.isFaceBorderingFluidU(i, j, k)) {
-                    setU(i, j, k, 0.0);
-                }
-            }
-        }
-    }
-
-    for (int k = 0; k < _ksize; k++) {
-        for (int j = 0; j < _jsize + 1; j++) {
-            for (int i = 0; i < _isize; i++) {
-                if (!matGrid.isFaceBorderingFluidV(i, j, k)) {
-                    setV(i, j, k, 0.0);
-                }
-            }
-        }
-    }
-
-    for (int k = 0; k < _ksize + 1; k++) {
-        for (int j = 0; j < _jsize; j++) {
-            for (int i = 0; i < _isize; i++) {
-                if (!matGrid.isFaceBorderingFluidW(i, j, k)) {
-                    setW(i, j, k, 0.0);
-                }
-            }
-        }
-    }
-}
-
-void MACVelocityField::extrapolateVelocityField(FluidMaterialGrid &materialGrid, 
+void MACVelocityField::extrapolateVelocityField(ValidVelocityComponentGrid &validGrid, 
                                                 int numLayers) {
-    _numExtrapolationLayers = numLayers;
-
-    Array3d<int> layerGrid = Array3d<int>(_isize, _jsize, _ksize, -1);
-
-    _resetExtrapolatedFluidVelocities(materialGrid);
-    _updateExtrapolationLayers(materialGrid, layerGrid);
-
-    for (int i = 1; i <= numLayers; i++) {
-        _extrapolateVelocitiesForLayerIndex(i, materialGrid, layerGrid);
-    }
+    _extrapolateGrid(_u, validGrid.validU, numLayers);
+    _extrapolateGrid(_v, validGrid.validV, numLayers);
+    _extrapolateGrid(_w, validGrid.validW, numLayers);
 }

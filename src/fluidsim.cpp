@@ -11,12 +11,10 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
     _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
 
-    _u_valid = Array3d<bool>(_isize + 1, _jsize, _ksize);
-    _v_valid = Array3d<bool>(_isize, _jsize + 1, _ksize); 
-    _w_valid = Array3d<bool>(_isize, _jsize, _ksize + 1);
+    _validVelocities = ValidVelocityComponentGrid(_isize, _jsize, _ksize);
 
-    _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     //make the particles large enough so they always appear on the grid
+    _particle_radius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
 
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
@@ -107,12 +105,7 @@ void FluidSim::advance(float dt) {
         //Because the advection step may interpolate from these invalid faces, 
         //we must extrapolate velocities from the fluid domain into these invalid faces.
         printf(" Extrapolation\n");
-        Array3d<float> *ugrid = _MACVelocity.getArray3dU();
-        Array3d<float> *vgrid = _MACVelocity.getArray3dV();
-        Array3d<float> *wgrid = _MACVelocity.getArray3dW();
-        _extrapolate(ugrid, _u_valid);
-        _extrapolate(vgrid, _v_valid);
-        _extrapolate(wgrid, _w_valid);
+        _extrapolateVelocityField();
      
         //For extrapolated velocities, replace the normal component with
         //that of the object.
@@ -237,74 +230,6 @@ void FluidSim::_add_force(float dt) {
     }
 }
 
-
-
-//For extrapolated points, replace the normal component
-//of velocity with the object velocity (in this case zero).
-void FluidSim::_constrain_velocity() {
-    _tempMACVelocity.set(_MACVelocity);
-
-    //(At lower grid resolutions, the normal estimate from the signed
-    //distance function can be poor, so it doesn't work quite as well.
-    //An exact normal would do better if we had it for the geometry.)
-
-    //constrain u
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                if(_weightGrid.U(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setU(i, j, k, vel.x);
-                }
-            }
-        }
-    }
-
-    //constrain v
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
-            for(int i = 0; i < _isize; i++) {
-                if(_weightGrid.V(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setV(i, j, k, vel.y);
-                }
-            }
-        }
-    }
-
-    //constrain w
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize; j++) { 
-            for(int i = 0; i < _isize; i++) {
-                if(_weightGrid.W(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                    vmath::vec3 vel = _get_velocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setW(i, j, k, vel.z);
-                }
-            }
-        }
-    }
-
-    _MACVelocity.set(_tempMACVelocity);
-
-}
 
 void FluidSim::_advect_particles(float dt) {
 
@@ -487,8 +412,9 @@ Array3d<float> FluidSim::_solve_pressure(float dt) {
 }
 
 void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
-        //Apply the velocity update
-    _u_valid.fill(false);
+    _validVelocities.reset();
+
+    //Apply the velocity update
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
@@ -502,14 +428,13 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                     }
                     double v = _MACVelocity.U(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i-1, j, k)) / _dx / theta;
                     _MACVelocity.setU(i, j, k, v);
-                    _u_valid.set(i, j, k, true);
+                    _validVelocities.validU.set(i, j, k, true);
                 }
 
             }
         }
     }
     
-    _v_valid.fill(false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
@@ -523,14 +448,13 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                     }
                     double v = _MACVelocity.V(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j-1, k)) / _dx / theta;
                     _MACVelocity.setV(i, j, k, v);
-                    _v_valid.set(i, j, k, true);
+                    _validVelocities.validV.set(i, j, k, true);
                 }
 
             }
         }
     }
 
-    _w_valid.fill(false);
     for(int k = 1; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
@@ -544,7 +468,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
                     }
                     double v = _MACVelocity.W(i, j, k) - dt  * (float)(pressureGrid(i, j, k) - pressureGrid(i, j, k-1)) / _dx / theta;
                     _MACVelocity.setW(i, j, k, v);
-                    _w_valid.set(i, j, k, true);
+                    _validVelocities.validW.set(i, j, k, true);
                 }
 
             }
@@ -554,7 +478,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
-                if(!_u_valid(i, j, k)) {
+                if(!_validVelocities.validU(i, j, k)) {
                     _MACVelocity.setU(i, j, k, 0.0);
                 }
             }
@@ -564,7 +488,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                if(!_v_valid(i, j, k)) {
+                if(!_validVelocities.validV(i, j, k)) {
                     _MACVelocity.setV(i, j, k, 0.0);
                 }
             }
@@ -574,7 +498,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
-                if(!_w_valid(i, j, k)) {
+                if(!_validVelocities.validW(i, j, k)) {
                     _MACVelocity.setW(i, j, k, 0.0);
                 }
             }
@@ -582,77 +506,74 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     }
 }
 
+void FluidSim::_extrapolateVelocityField() {
+    _MACVelocity.extrapolateVelocityField(_validVelocities, _numExtrapolationLayers);
+}
 
-//Apply several iterations of a very simple propagation of valid velocity data in all directions
-void FluidSim::_extrapolate(Array3d<float> *grid, Array3d<bool> &valid) {
+//For extrapolated points, replace the normal component
+//of velocity with the object velocity (in this case zero).
+void FluidSim::_constrain_velocity() {
+    _tempMACVelocity.set(_MACVelocity);
 
-    Array3d<float> temp_grid(grid->width, grid->height, grid->depth);
-    for(int k = 0; k < grid->depth; k++) {
-        for(int j = 0; j < grid->height; j++) {
-            for(int i = 0; i < grid->width; i++) {
-                temp_grid.set(i, j, k, grid->get(i, j, k));
+    //(At lower grid resolutions, the normal estimate from the signed
+    //distance function can be poor, so it doesn't work quite as well.
+    //An exact normal would do better if we had it for the geometry.)
+
+    //constrain u
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                if(_weightGrid.U(i, j, k) == 0) {
+                    //apply constraint
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
+                    vel -= perp_component*normal;
+                    _tempMACVelocity.setU(i, j, k, vel.x);
+                }
             }
         }
     }
 
-    Array3d<bool> old_valid;
-    for(int layers = 0; layers < 10; layers++) {
-
-        old_valid = valid;
-        for(int k = 1; k < grid->depth - 1; k++) {
-            for(int j = 1; j < grid->height - 1; j++) {
-                for(int i = 1; i < grid->width - 1; i++) {
-
-                    if(old_valid(i,j,k)) {
-                        continue;
-                    }
-
-                    float sum = 0;
-                    int count = 0;
-                    if(old_valid(i + 1, j, k)) {
-                        sum += grid->get(i + 1, j, k);
-                        count++;
-                    }
-                    if(old_valid(i - 1, j, k)) {
-                        sum += grid->get(i - 1, j, k);
-                        count++;
-                    }
-                    if(old_valid(i, j + 1, k)) {
-                        sum += grid->get(i, j + 1, k);
-                        count++;
-                    }
-                    if(old_valid(i, j - 1, k)) {
-                        sum += grid->get(i, j - 1, k);
-                        count++;
-                    }
-                    if(old_valid(i, j, k + 1)) {
-                        sum += grid->get(i, j, k + 1);
-                        count++;
-                    }
-                    if(old_valid(i, j, k - 1)) {
-                        sum += grid->get(i, j, k - 1);
-                        count++;
-                    }
-
-                    //If any of neighbour cells were valid, 
-                    //assign the cell their average value and tag it as valid
-                    if(count > 0) {
-                        temp_grid.set(i, j, k, sum /(float)count);
-                        valid.set(i, j, k, true);
-                    }
-
+    //constrain v
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize + 1; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if(_weightGrid.V(i, j, k) == 0) {
+                    //apply constraint
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
+                    vel -= perp_component*normal;
+                    _tempMACVelocity.setV(i, j, k, vel.y);
                 }
             }
         }
-
-        for(int k = 0; k < grid->depth; k++) {
-            for(int j = 0; j < grid->height; j++) {
-                for(int i = 0; i < grid->width; i++) {
-                    grid->set(i, j, k, temp_grid(i, j, k));
-                }
-            }
-        }
-
     }
+
+    //constrain w
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) { 
+            for(int i = 0; i < _isize; i++) {
+                if(_weightGrid.W(i, j, k) == 0) {
+                    //apply constraint
+                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
+                    vmath::vec3 vel = _get_velocity(pos);
+                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
+                    normal = vmath::normalize(normal);
+                    float perp_component = vmath::dot(vel, normal);
+                    vel -= perp_component*normal;
+                    _tempMACVelocity.setW(i, j, k, vel.z);
+                }
+            }
+        }
+    }
+
+    _MACVelocity.set(_tempMACVelocity);
 
 }
+
