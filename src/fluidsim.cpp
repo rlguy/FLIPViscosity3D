@@ -31,7 +31,7 @@ void FluidSim::addBoundary(TriangleMesh &boundary, bool isInverted) {
                     domain.isPointInside(bbox.getMaxPoint()));
 
     MeshLevelSet boundarySDF(_isize, _jsize, _ksize, _dx);
-    boundarySDF.calculateSignedDistanceField(boundary, _solidLevelSetExactBand);
+    boundarySDF.calculateSignedDistanceField(boundary, _meshLevelSetExactBand);
     if (isInverted) {
         boundarySDF.negate();
     }
@@ -43,7 +43,15 @@ void FluidSim::resetBoundary() {
     _initializeBoundary();
 }
 
-void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
+void FluidSim::addLiquid(TriangleMesh &mesh) {
+    AABB domain(0.0, 0.0, 0.0, _isize * _dx, _jsize * _dx, _ksize *_dx);
+    AABB bbox(mesh.vertices);
+    FLUIDSIM_ASSERT(domain.isPointInside(bbox.getMinPoint()) &&
+                    domain.isPointInside(bbox.getMaxPoint()));
+
+    MeshLevelSet meshSDF(_isize, _jsize, _ksize, _dx);
+    meshSDF.calculateSignedDistanceField(mesh, _meshLevelSetExactBand);
+
     //initialize particles
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) { 
@@ -57,7 +65,7 @@ void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
                     vmath::vec3 jitter = vmath::vec3(a, b, c);
                     vmath::vec3 pos = gpos + jitter;
 
-                    if(phi(pos) <= -_particle_radius) {
+                    if(meshSDF.trilinearInterpolate(pos) <= -_particle_radius) {
                         float solid_phi = _solidSDF.trilinearInterpolate(pos);
                         if(solid_phi >= 0) {
                             particles.push_back(pos);
@@ -169,7 +177,7 @@ TriangleMesh FluidSim::_getBoundaryTriangleMesh() {
 void FluidSim::_initializeBoundary() {
     TriangleMesh boundaryMesh = _getBoundaryTriangleMesh();
     _solidSDF = MeshLevelSet(_isize, _jsize, _ksize, _dx);
-    _solidSDF.calculateSignedDistanceField(boundaryMesh, _solidLevelSetExactBand);
+    _solidSDF.calculateSignedDistanceField(boundaryMesh, _meshLevelSetExactBand);
 }
 
 float FluidSim::_cfl() {

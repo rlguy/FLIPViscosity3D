@@ -8,16 +8,9 @@
 #include "fluidsim.h"
 #include "trianglemesh.h"
 #include "meshlevelset.h"
+#include "fluidmaterialgrid.h"
 
 using namespace std;
-
-float sphere_phi(vmath::vec3 position, vmath::vec3 centre, float radius) {
-    return vmath::length(position - centre) - radius;
-}
-
-float liquid_phi(vmath::vec3 position) {
-    return sphere_phi(position, vmath::vec3(0.5f, 0.5f, 0.5f), 0.45);
-}
 
 void export_particles(int frame, std::vector<vmath::vec3> &particles) {
     TriangleMesh mesh;
@@ -57,7 +50,10 @@ int main(int argc, char **argv)
     sim.addBoundary(boundaryMesh);
     
     printf("Initializing liquid\n");
-    sim.set_liquid(liquid_phi);
+    TriangleMesh liquidMesh;
+    success = liquidMesh.loadBOBJ("sphere.bobj");
+    FLUIDSIM_ASSERT(success);
+    sim.addLiquid(liquidMesh);
 
     int num_frames = 300;
     for(int frame = 0; frame < num_frames; frame++) {
@@ -66,7 +62,6 @@ int main(int argc, char **argv)
         //Simulate
         printf("Simulating liquid\n");
         sim.advance(timestep);
-        
     }
 
     return 0;
