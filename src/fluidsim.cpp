@@ -20,14 +20,27 @@ void FluidSim::initialize(int i, int j, int k, float width) {
 
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
+
+    _initializeBoundary();
 }
 
-//Initialize the grid-based signed distance field that dictates the position of the solid boundary
-void FluidSim::set_boundary(MeshLevelSet &boundary) {
-    int bi, bj, bk;
-    boundary.getGridDimensions(&bi, &bj, &bk);
-    FLUIDSIM_ASSERT(bi == _isize && bj == _jsize && bk == _ksize);
-    _solidSDF = boundary;
+void FluidSim::addBoundary(TriangleMesh &boundary, bool isInverted) {
+    AABB domain(0.0, 0.0, 0.0, _isize * _dx, _jsize * _dx, _ksize *_dx);
+    AABB bbox(boundary.vertices);
+    FLUIDSIM_ASSERT(domain.isPointInside(bbox.getMinPoint()) &&
+                    domain.isPointInside(bbox.getMaxPoint()));
+
+    MeshLevelSet boundarySDF(_isize, _jsize, _ksize, _dx);
+    boundarySDF.calculateSignedDistanceField(boundary, _solidLevelSetExactBand);
+    if (isInverted) {
+        boundarySDF.negate();
+    }
+
+    _solidSDF.calculateUnion(boundarySDF);
+}
+
+void FluidSim::resetBoundary() {
+    _initializeBoundary();
 }
 
 void FluidSim::set_liquid(float (*phi)(vmath::vec3)) {
@@ -99,6 +112,62 @@ void FluidSim::advance(float dt) {
     }
 }
 
+TriangleMesh FluidSim::_getTriangleMeshFromAABB(AABB bbox) {
+    vmath::vec3 p = bbox.position;
+    std::vector<vmath::vec3> verts{
+        vmath::vec3(p.x, p.y, p.z),
+        vmath::vec3(p.x + bbox.width, p.y, p.z),
+        vmath::vec3(p.x + bbox.width, p.y, p.z + bbox.depth),
+        vmath::vec3(p.x, p.y, p.z + bbox.depth),
+        vmath::vec3(p.x, p.y + bbox.height, p.z),
+        vmath::vec3(p.x + bbox.width, p.y + bbox.height, p.z),
+        vmath::vec3(p.x + bbox.width, p.y + bbox.height, p.z + bbox.depth),
+        vmath::vec3(p.x, p.y + bbox.height, p.z + bbox.depth)
+    };
+
+    std::vector<Triangle> tris{
+        Triangle(0, 1, 2), Triangle(0, 2, 3), Triangle(4, 7, 6), Triangle(4, 6, 5),
+        Triangle(0, 3, 7), Triangle(0, 7, 4), Triangle(1, 5, 6), Triangle(1, 6, 2),
+        Triangle(0, 4, 5), Triangle(0, 5, 1), Triangle(3, 2, 6), Triangle(3, 6, 7)
+    };
+
+
+    TriangleMesh m;
+    m.vertices = verts;
+    m.triangles = tris;
+
+    return m;
+}
+
+TriangleMesh FluidSim::_getBoundaryTriangleMesh() {
+    double eps = 1e-6;
+    AABB domainAABB(0.0, 0.0, 0.0, _isize * _dx, _jsize * _dx, _ksize * _dx);
+    AABB outerAABB = domainAABB;
+    outerAABB.expand(-eps);
+    AABB innerAABB = domainAABB;
+    innerAABB.expand(-2 * _dx - eps);
+
+    TriangleMesh domainMesh = _getTriangleMeshFromAABB(outerAABB);
+    TriangleMesh innerMesh = _getTriangleMeshFromAABB(innerAABB);
+    int indexOffset = domainMesh.vertices.size();
+    domainMesh.vertices.insert(domainMesh.vertices.end(), 
+                               innerMesh.vertices.begin(), innerMesh.vertices.end());
+    for (size_t i = 0; i < innerMesh.triangles.size(); i++) {
+        Triangle t = innerMesh.triangles[i];
+        t.tri[0] += indexOffset;
+        t.tri[1] += indexOffset;
+        t.tri[2] += indexOffset;
+        domainMesh.triangles.push_back(t);
+    }
+
+    return domainMesh;
+}
+
+void FluidSim::_initializeBoundary() {
+    TriangleMesh boundaryMesh = _getBoundaryTriangleMesh();
+    _solidSDF = MeshLevelSet(_isize, _jsize, _ksize, _dx);
+    _solidSDF.calculateSignedDistanceField(boundaryMesh, _solidLevelSetExactBand);
+}
 
 float FluidSim::_cfl() {
 
@@ -217,7 +286,10 @@ void FluidSim::_constrain_velocity() {
 
 }
 
-void FluidSim::_advect_particles(float dt) { 
+void FluidSim::_advect_particles(float dt) {
+
+    AABB boundary(0.0, 0.0, 0.0, _isize * _dx, _jsize *_dx, _ksize * _dx);
+    boundary.expand(-2 * _dx - 1e-4);
 
     for(unsigned int p = 0; p < particles.size(); p++) {
         particles[p] = _trace_rk2(particles[p], dt);
@@ -230,6 +302,10 @@ void FluidSim::_advect_particles(float dt) {
                 grad = vmath::normalize(grad);
             }
             particles[p] -= phi_val * grad;
+        }
+
+        if (!boundary.isPointInside(particles[p])) {
+            particles[p] = boundary.getNearestPointInsideAABB(particles[p]);
         }
     }
     

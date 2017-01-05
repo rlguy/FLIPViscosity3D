@@ -9,6 +9,7 @@
 #include "interpolation.h"
 #include "pressuresolver.h"
 #include "meshlevelset.h"
+#include "fluidsimassert.h"
 
 #include <vector>
 
@@ -16,7 +17,8 @@ class FluidSim {
 
 public:
     void initialize(int i, int j, int k, float width);
-    void set_boundary(MeshLevelSet &boundary);
+    void addBoundary(TriangleMesh &boundary, bool isInverted = false);
+    void resetBoundary();
     void set_liquid(float (*phi)(vmath::vec3));
     void add_particle(vmath::vec3 pos);
 
@@ -25,7 +27,9 @@ public:
     std::vector<vmath::vec3> particles;
 
 private:
-
+    TriangleMesh _getTriangleMeshFromAABB(AABB bbox);
+    TriangleMesh _getBoundaryTriangleMesh();
+    void _initializeBoundary();
     vmath::vec3 _trace_rk2(vmath::vec3 position, float dt);
 
     float _cfl();
@@ -66,6 +70,8 @@ private:
     Array3d<bool> _u_valid, _v_valid, _w_valid;
 
     MeshLevelSet _solidSDF;
+    double _solidLevelSetExactBand = 3;
+
     ParticleLevelSet _liquidSDF;
     float _particle_radius;
 
