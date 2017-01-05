@@ -48,6 +48,29 @@ float ParticleLevelSet::get(GridIndex g) {
     return _phi(g);
 }
 
+float ParticleLevelSet::getFaceWeightU(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize + 1, _jsize, _ksize));
+    return LevelsetUtils::fractionInside(_phi(i - 1, j, k), _phi(i, j, k));
+}
+
+float ParticleLevelSet::getFaceWeightU(GridIndex g) {
+    return getFaceWeightU(g.i, g.j, g.k);
+}
+
+float ParticleLevelSet::getFaceWeightV(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize, _jsize + 1, _ksize));
+    return LevelsetUtils::fractionInside(_phi(i, j - 1, k), _phi(i, j, k));
+}
+
+float ParticleLevelSet::getFaceWeightV(GridIndex g) {
+    return getFaceWeightV(g.i, g.j, g.k);
+}
+
+float ParticleLevelSet::getFaceWeightW(int i, int j, int k) {
+    FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize, _jsize, _ksize + 1));
+    return LevelsetUtils::fractionInside(_phi(i, j, k - 1), _phi(i, j, k));
+}
+
 void ParticleLevelSet::calculateSignedDistanceField(std::vector<vmath::vec3> &particles, 
                                                     double radius,
                                                     MeshLevelSet &solidPhi) {

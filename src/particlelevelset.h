@@ -24,6 +24,7 @@ freely, subject to the following restrictions:
 
 #include "array3d.h"
 #include "grid3d.h"
+#include "levelsetutils.h"
 #include "meshlevelset.h"
 #include "fluidsimassert.h"
 
@@ -38,6 +39,12 @@ public:
     float operator()(GridIndex g);
     float get(int i, int j, int k);
     float get(GridIndex g);
+    float getFaceWeightU(int i, int j, int k);
+    float getFaceWeightU(GridIndex g);
+    float getFaceWeightV(int i, int j, int k);
+    float getFaceWeightV(GridIndex g);
+    float getFaceWeightW(int i, int j, int k);
+    float getFaceWeightW(GridIndex g);
 
     void calculateSignedDistanceField(std::vector<vmath::vec3> &particles, 
                                       double radius,

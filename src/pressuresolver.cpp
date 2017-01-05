@@ -193,8 +193,6 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         int k = _pressureCells->at(idx).k;
         int index = _GridToVectorIndex(i, j, k);
 
-        float phiCenter = _liquidSDF->get(i, j, k);
-
         //right neighbour
         float term = _weightGrid->U(i + 1, j, k) * scale;
         float phiRight = _liquidSDF->get(i + 1, j, k);
@@ -202,7 +200,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusi -= term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiRight), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightU(i + 1, j, k), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -212,7 +210,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiLeft < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiLeft), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightU(i, j, k), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -223,7 +221,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusj -= term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiTop), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightV(i, j + 1, k), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -233,7 +231,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiBot < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiBot), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightV(i, j, k), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -244,7 +242,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
             A[index].diag += term;
             A[index].plusk -= term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiFar), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightW(i, j, k + 1), _minfrac);
             A[index].diag += term / theta;
         }
 
@@ -254,7 +252,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         if(phiNear < 0) {
             A[index].diag += term;
         } else {
-            float theta = fmax(LevelsetUtils::fractionInside(phiCenter, phiNear), _minfrac);
+            float theta = fmax(_liquidSDF->getFaceWeightW(i, j, k), _minfrac);
             A[index].diag += term / theta;
         }
     }

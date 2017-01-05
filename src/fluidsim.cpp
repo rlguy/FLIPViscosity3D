@@ -1,7 +1,5 @@
 #include "fluidsim.h"
 
-#include "levelsetutils.h"
-
 void FluidSim::initialize(int i, int j, int k, float width) {
     _isize = i;
     _jsize = j;
@@ -413,15 +411,13 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
 
-                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.U(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i - 1, j, k) < 0)) {
                     float p0 = pressureGrid(i-1, j, k);
                     float p1 = pressureGrid(i, j, k);
 
-                    float theta = 1;
+                    float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i - 1, j, k) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquidSDF(i - 1, j, k), _liquidSDF(i, j, k));
-                        theta = fmax(theta, _minfrac);
+                        theta = fmax(_liquidSDF.getFaceWeightU(i, j, k), _minfrac);
                     }
                     double v = _MACVelocity.U(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setU(i, j, k, v);
@@ -436,15 +432,13 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.V(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j - 1, k) < 0)) {
                     float p0 = pressureGrid(i, j - 1, k);
                     float p1 = pressureGrid(i, j, k);
 
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j - 1, k) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquidSDF(i, j - 1, k), _liquidSDF(i, j, k));
-                        theta = fmax(theta, _minfrac);
+                        theta = fmax(_liquidSDF.getFaceWeightV(i, j, k), _minfrac);
                     }
                     double v = _MACVelocity.V(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setV(i, j, k, v);
@@ -459,15 +453,13 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                //int index = Grid3d::getFlatIndex(i, j, k, _isize, _jsize);
                 if(_weightGrid.W(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j, k - 1) < 0)) {
                     float p0 = pressureGrid(i, j, k - 1);
                     float p1 = pressureGrid(i, j, k);
 
                     float theta = 1.0;
                     if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j, k - 1) >= 0) {
-                        theta = LevelsetUtils::fractionInside(_liquidSDF(i, j, k - 1), _liquidSDF(i, j, k));
-                        theta = fmax(theta, _minfrac);
+                        theta = fmax(_liquidSDF.getFaceWeightW(i, j, k), _minfrac);
                     }
                     double v = _MACVelocity.W(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
                     _MACVelocity.setW(i, j, k, v);

@@ -43,7 +43,6 @@ freely, subject to the following restrictions:
 #include "array3d.h"
 #include "gridindexvector.h"
 #include "fluidsimassert.h"
-#include "levelsetutils.h"
 #include "particlelevelset.h"
 
 struct WeightGrid {
