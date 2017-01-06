@@ -404,23 +404,27 @@ Array3d<float> FluidSim::_solvePressure(float dt) {
 }
 
 void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
-    _validVelocities.reset();
+    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    for(int k = 0; k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if (_liquidSDF(i, j, k) < 0.0) {
+                    mgrid.setFluid(i, j, k);
+                }
+            }
+        }
+    }
 
-    //Apply the velocity update
+    _validVelocities.reset();
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
 
-                if(_weightGrid.U(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i - 1, j, k) < 0)) {
+                if (_weightGrid.U(i, j, k) > 0 && mgrid.isFaceBorderingFluidU(i, j, k)) {
                     float p0 = pressureGrid(i-1, j, k);
                     float p1 = pressureGrid(i, j, k);
-
-                    float theta = 1.0;
-                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i - 1, j, k) >= 0) {
-                        theta = fmax(_liquidSDF.getFaceWeightU(i, j, k), _minfrac);
-                    }
-                    double v = _MACVelocity.U(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
-                    _MACVelocity.setU(i, j, k, v);
+                    float theta = fmax(_liquidSDF.getFaceWeightU(i, j, k), _minfrac);
+                    _MACVelocity.addU(i, j, k, -dt * (p1 - p0) / (_dx * theta));
                     _validVelocities.validU.set(i, j, k, true);
                 }
 
@@ -432,16 +436,11 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                if(_weightGrid.V(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j - 1, k) < 0)) {
+                if (_weightGrid.V(i, j, k) > 0 && mgrid.isFaceBorderingFluidV(i, j, k)) {
                     float p0 = pressureGrid(i, j - 1, k);
                     float p1 = pressureGrid(i, j, k);
-
-                    float theta = 1.0;
-                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j - 1, k) >= 0) {
-                        theta = fmax(_liquidSDF.getFaceWeightV(i, j, k), _minfrac);
-                    }
-                    double v = _MACVelocity.V(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
-                    _MACVelocity.setV(i, j, k, v);
+                    float theta = fmax(_liquidSDF.getFaceWeightV(i, j, k), _minfrac);
+                    _MACVelocity.addV(i, j, k, -dt * (p1 - p0) / (_dx * theta));
                     _validVelocities.validV.set(i, j, k, true);
                 }
 
@@ -453,16 +452,11 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                if(_weightGrid.W(i, j, k) > 0 && (_liquidSDF(i, j, k) < 0 || _liquidSDF(i, j, k - 1) < 0)) {
+                if (_weightGrid.W(i, j, k) > 0 && mgrid.isFaceBorderingFluidW(i, j, k)) {
                     float p0 = pressureGrid(i, j, k - 1);
                     float p1 = pressureGrid(i, j, k);
-
-                    float theta = 1.0;
-                    if(_liquidSDF(i, j, k) >= 0 || _liquidSDF(i, j, k - 1) >= 0) {
-                        theta = fmax(_liquidSDF.getFaceWeightW(i, j, k), _minfrac);
-                    }
-                    double v = _MACVelocity.W(i, j, k) - dt * (float)(p1 - p0) / (_dx * theta);
-                    _MACVelocity.setW(i, j, k, v);
+                    float theta = fmax(_liquidSDF.getFaceWeightW(i, j, k), _minfrac);
+                    _MACVelocity.addW(i, j, k, -dt * (p1 - p0) / (_dx * theta));
                     _validVelocities.validW.set(i, j, k, true);
                 }
 
