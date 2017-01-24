@@ -86,6 +86,8 @@ public:
     void calculateUnion(MeshLevelSet &levelset);
     void negate();
 
+    Array3d<float> _phi;
+
 private:
 
     void _computeExactBandDistanceField(int bandwidth,
@@ -113,7 +115,7 @@ private:
     double _dx = 0.0;
 
     TriangleMesh _mesh;
-    Array3d<float> _phi;
+    //Array3d<float> _phi;
     Array3d<int> _closestTriangles;
 };
 

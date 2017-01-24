@@ -1,6 +1,9 @@
 /*
-    LevelSet methods addapted from Christopher Batty's levelset_util.cpp:
+    LevelSet methods adapted from Christopher Batty's levelset_util.cpp:
         https://github.com/christopherbatty/Fluid3D/blob/master/levelset_util.cpp
+
+    and volume_fractions.cpp:
+        https://github.com/christopherbatty/VariationalViscosity3D/blob/master/volume_fractions.cpp
 
 */
 
@@ -114,5 +117,138 @@ float fractionInside(float phibl, float phibr, float phitl, float phitr) {
     }
 
 }
+
+float areaFraction(float phi0, float phi1, float phi2) {
+    if(phi0 < 0) {
+        if (phi1 < 0) {
+            if(phi2<0) {
+                return 0;
+            } else { 
+                return 1 - _sortedTriangleFraction(phi2, phi0, phi1);
+            }
+        } else if (phi2 < 0) { 
+            return 1 - _sortedTriangleFraction(phi1, phi2, phi0);
+        } else {
+            return _sortedTriangleFraction(phi0, phi1, phi2);
+        }
+    } else if(phi1 < 0) {
+        if (phi2 < 0) {
+            return 1 - _sortedTriangleFraction(phi0, phi1, phi2);
+        } else {
+            return _sortedTriangleFraction(phi1, phi2, phi0);
+        }
+    } else if (phi2 < 0) {
+        return _sortedTriangleFraction(phi2, phi0, phi1);
+    } else {
+        return 0;
+    }
+}
+
+double areaFraction(double phi0, double phi1, double phi2) {
+     if(phi0 < 0) {
+        if (phi1 < 0) {
+            if(phi2<0) {
+                return 0;
+            } else { 
+                return 1 - _sortedTriangleFraction(phi2, phi0, phi1);
+            }
+        } else if (phi2 < 0) { 
+            return 1 - _sortedTriangleFraction(phi1, phi2, phi0);
+        } else {
+            return _sortedTriangleFraction(phi0, phi1, phi2);
+        }
+    } else if(phi1 < 0) {
+        if (phi2 < 0) {
+            return 1 - _sortedTriangleFraction(phi0, phi1, phi2);
+        } else {
+            return _sortedTriangleFraction(phi1, phi2, phi0);
+        }
+    } else if (phi2 < 0) {
+        return _sortedTriangleFraction(phi2, phi0, phi1);
+    } else {
+        return 0;
+    }             return 0;
+}
+
+float areaFraction(float phi00, float phi10, float phi01, float phi11) {
+    float phimid = 0.25f * (phi00 + phi10 + phi01 + phi11);
+    return 0.25f * (areaFraction(phi00, phi10, phimid) +
+                    areaFraction(phi10, phi11, phimid) +
+                    areaFraction(phi11, phi01, phimid) +
+                    areaFraction(phi01, phi00, phimid));
+}
+
+double areaFraction(double phi00, double phi10, double phi01, double phi11) {
+    double phimid = 0.25 * (phi00 + phi10 + phi01 + phi11);
+    return 0.25 * (areaFraction(phi00, phi10, phimid) +
+                   areaFraction(phi10, phi11, phimid) +
+                   areaFraction(phi11, phi01, phimid) +
+                   areaFraction(phi01, phi00, phimid));
+}
+
+float volumeFraction(float phi0, float phi1, float phi2, float phi3) {
+    _sort(phi0, phi1, phi2, phi3);
+    if (phi3 <= 0) { 
+        return 1;
+    } else if (phi2 <= 0) { 
+        return 1 - _sortedTetFraction(phi3, phi2, phi1, phi0);
+    } else if (phi1 <= 0) { 
+        return _sortedPrismFraction(phi0, phi1, phi2, phi3);
+    } else if (phi0 <= 0) { 
+        return _sortedTetFraction(phi0, phi1, phi2, phi3);
+    } else {
+        return 0;
+    }
+}
+
+double volumeFraction(double phi0, double phi1, double phi2, double phi3) {
+    _sort(phi0, phi1, phi2, phi3);
+    if (phi3 <= 0) { 
+        return 1;
+    } else if (phi2 <= 0) { 
+        return 1 - _sortedTetFraction(phi3, phi2, phi1, phi0);
+    } else if (phi1 <= 0) { 
+        return _sortedPrismFraction(phi0, phi1, phi2, phi3);
+    } else if (phi0 <= 0) { 
+        return _sortedTetFraction(phi0, phi1, phi2, phi3);
+    } else {
+        return 0;
+    }
+}
+
+float volumeFraction(float phi000, float phi100,
+                     float phi010, float phi110,
+                     float phi001, float phi101,
+                     float phi011, float phi111) {
+    // This is the average of the two possible decompositions of the cube into
+    // five tetrahedra.
+    return (volumeFraction(phi000, phi001, phi101, phi011) +
+            volumeFraction(phi000, phi101, phi100, phi110) +
+            volumeFraction(phi000, phi010, phi011, phi110) +
+            volumeFraction(phi101, phi011, phi111, phi110) +
+            2 * volumeFraction(phi000, phi011, phi101, phi110) +
+            volumeFraction(phi100, phi101, phi001, phi111) +
+            volumeFraction(phi100, phi001, phi000, phi010) +
+            volumeFraction(phi100, phi110, phi111, phi010) +
+            volumeFraction(phi001, phi111, phi011, phi010) +
+            2 * volumeFraction(phi100, phi111, phi001, phi010)) / 12.0f;
+}
+
+double volumeFraction(double phi000, double phi100,
+                                             double phi010, double phi110,
+                                             double phi001, double phi101,
+                                             double phi011, double phi111) {
+    return (volumeFraction(phi000, phi001, phi101, phi011) +
+            volumeFraction(phi000, phi101, phi100, phi110) +
+            volumeFraction(phi000, phi010, phi011, phi110) +
+            volumeFraction(phi101, phi011, phi111, phi110) +
+            2 * volumeFraction(phi000, phi011, phi101, phi110) +
+            volumeFraction(phi100, phi101, phi001, phi111) +
+            volumeFraction(phi100, phi001, phi000, phi010) +
+            volumeFraction(phi100, phi110, phi111, phi010) +
+            volumeFraction(phi001, phi111, phi011, phi010) +
+            2 * volumeFraction(phi100, phi111, phi001, phi010)) / 12.0;
+}
+
 
 }

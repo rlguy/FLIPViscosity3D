@@ -1,10 +1,10 @@
 #include "fluidsim.h"
 
-void FluidSim::initialize(int i, int j, int k, float width) {
+void FluidSim::initialize(int i, int j, int k, float dx) {
     _isize = i;
     _jsize = j;
     _ksize = k;
-    _dx = width / (float)_isize;
+    _dx = dx;
 
     _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
     _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
@@ -14,6 +14,7 @@ void FluidSim::initialize(int i, int j, int k, float width) {
     _particleRadius = (float)(_dx * 1.01*sqrt(3.0)/2.0); 
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
+    _viscosity = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1, 1.0);
 
     _initializeBoundary();
 }
@@ -59,7 +60,7 @@ void FluidSim::addLiquid(TriangleMesh &mesh) {
                     vmath::vec3 jitter = vmath::vec3(a, b, c);
                     vmath::vec3 pos = gpos + jitter;
 
-                    if(meshSDF.trilinearInterpolate(pos) <= -_particleRadius) {
+                    if(meshSDF.trilinearInterpolate(pos) < 0.0) {
                         float solid_phi = _solidSDF.trilinearInterpolate(pos);
                         if(solid_phi >= 0) {
                             particles.push_back(pos);
@@ -67,6 +68,33 @@ void FluidSim::addLiquid(TriangleMesh &mesh) {
                     }
                 }
 
+            }
+        }
+    }
+}
+
+void FluidSim::setViscosity(float value) {
+    FLUIDSIM_ASSERT(value >= 0.0);
+    for (int k = 0; k < _viscosity.depth; k++) {
+        for (int j = 0; j < _viscosity.height; j++) {
+            for (int i = 0; i < _viscosity.width; i++) {
+                _viscosity.set(i, j, k, value);
+            }
+        }
+    }
+}
+
+void FluidSim::setViscosity(Array3d<float> &vgrid) {
+    FLUIDSIM_ASSERT(vgrid.width == _isize + 1 && 
+                    vgrid.height == _jsize + 1 && 
+                    vgrid.depth == _ksize + 1);
+
+    for (int k = 0; k < _viscosity.depth; k++) {
+        for (int j = 0; j < _viscosity.height; j++) {
+            for (int i = 0; i < _viscosity.width; i++) {
+                float v = vgrid(i, j, k);
+                FLUIDSIM_ASSERT(v >= 0.0);
+                _viscosity.set(i, j, k, vgrid(i, j, k));
             }
         }
     }
@@ -94,6 +122,8 @@ void FluidSim::advance(float dt) {
         _advectVelocityField(substep);
         _addBodyForce(substep);
 
+        _applyViscosity(substep);
+
         printf(" Pressure projection\n");
         _project(substep); 
          
@@ -110,6 +140,36 @@ void FluidSim::advance(float dt) {
 
         t += substep;
     }
+}
+
+void FluidSim::_applyViscosity(float dt) {
+    printf("Apply Viscosity\n");
+
+    bool isViscosityNonZero = false;
+    for (int k = 0; k < _viscosity.depth; k++) {
+        for (int j = 0; j < _viscosity.height; j++) {
+            for (int i = 0; i < _viscosity.width; i++) {
+                if (_viscosity(i, j, k) > 0.0) {
+                    isViscosityNonZero = true;
+                }
+            }
+        }
+    }
+
+    if (!isViscosityNonZero) {
+        return;
+    }
+
+    ViscositySolverParameters params;
+    params.cellwidth = _dx;
+    params.deltaTime = dt;
+    params.velocityField = &_MACVelocity;
+    params.liquidSDF = &_liquidSDF;
+    params.solidSDF = &_solidSDF;
+    params.viscosity = &_viscosity;
+
+    ViscositySolver vsolver;
+    vsolver.applyViscosityToVelocityField(params);
 }
 
 TriangleMesh FluidSim::_getTriangleMeshFromAABB(AABB bbox) {
@@ -145,7 +205,7 @@ TriangleMesh FluidSim::_getBoundaryTriangleMesh() {
     AABB outerAABB = domainAABB;
     outerAABB.expand(-eps);
     AABB innerAABB = domainAABB;
-    innerAABB.expand(-2 * _dx - eps);
+    innerAABB.expand(-3 * _dx - eps);
 
     TriangleMesh domainMesh = _getTriangleMeshFromAABB(outerAABB);
     TriangleMesh innerMesh = _getTriangleMeshFromAABB(innerAABB);
@@ -166,7 +226,15 @@ TriangleMesh FluidSim::_getBoundaryTriangleMesh() {
 void FluidSim::_initializeBoundary() {
     TriangleMesh boundaryMesh = _getBoundaryTriangleMesh();
     _solidSDF = MeshLevelSet(_isize, _jsize, _ksize, _dx);
-    _solidSDF.calculateSignedDistanceField(boundaryMesh, _meshLevelSetExactBand);
+    _solidSDF.calculateSignedDistanceField(boundaryMesh, 50);
+
+    for(int k = 0; k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize + 1; j++) { 
+            for(int i = 0; i < _isize + 1; i++) {
+                vmath::vec3 p = Grid3d::GridIndexToPosition(i, j, k, _dx);
+            }
+        }
+    }
 }
 
 float FluidSim::_cfl() {
@@ -256,15 +324,24 @@ void FluidSim::_updateLiquidSDF() {
 void FluidSim::_advectVelocityField(float dt) {
 
     FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    GridIndex nbs[6];
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if (_liquidSDF(i, j, k) < 0.0) {
+                    Grid3d::getNeighbourGridIndices6(i, j, k, nbs);
                     mgrid.setFluid(i, j, k);
+
+                    for (int idx = 0; idx < 6; idx++) {
+                        if (Grid3d::isGridIndexInRange(nbs[idx], _isize, _jsize, _ksize)) {
+                            mgrid.setFluid(nbs[idx]);
+                        }
+                    }
                 }
             }
         }
     }
+
     _tempMACVelocity.clear();
 
     //semi-Lagrangian advection on u-component of velocity
@@ -332,14 +409,8 @@ vmath::vec3 FluidSim::_traceRK2(vmath::vec3 position, float dt) {
 
 //Interpolate velocity from the MAC grid.
 vmath::vec3 FluidSim::_getVelocity(vmath::vec3 position) {
-    float u_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0, 0.5*_dx, 0.5*_dx), _dx, *(_MACVelocity.getArray3dU()));
-    float v_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0, 0.5*_dx), _dx, *(_MACVelocity.getArray3dV()));
-    float w_value = Interpolation::trilinearInterpolate(position - vmath::vec3(0.5*_dx, 0.5*_dx, 0), _dx, *(_MACVelocity.getArray3dW()));
-
-    return vmath::vec3(u_value, v_value, w_value);
+    return _MACVelocity.evaluateVelocityAtPositionLinear(position);
 }
-
-
 
 //Compute finite-volume style face-weights for fluid from nodal signed distances
 void FluidSim::_computeWeights() {

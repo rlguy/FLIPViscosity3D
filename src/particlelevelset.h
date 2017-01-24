@@ -49,7 +49,7 @@ public:
     void calculateSignedDistanceField(std::vector<vmath::vec3> &particles, 
                                       double radius,
                                       MeshLevelSet &solidPhi);
-
+    float trilinearInterpolate(vmath::vec3 pos);
 private:
 
     float _getMaxDistance();

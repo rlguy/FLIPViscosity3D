@@ -7,17 +7,12 @@
 
 #include "fluidsim.h"
 #include "trianglemesh.h"
-#include "meshlevelset.h"
-#include "fluidmaterialgrid.h"
-
-using namespace std;
 
 void export_particles(int frame, std::vector<vmath::vec3> &particles) {
     TriangleMesh mesh;
     double scale = 10.0;
-    for(unsigned int p = 0; p < particles.size(); ++p) {
-        vmath::vec3 v(particles[p][0] * scale, particles[p][1] * scale, particles[p][2] * scale);
-        mesh.vertices.push_back(v);
+    for(unsigned int i = 0; i < particles.size(); i++) {
+        mesh.vertices.push_back(scale * particles[i]);
     }
 
     std::ostringstream ss;
@@ -30,24 +25,22 @@ void export_particles(int frame, std::vector<vmath::vec3> &particles) {
     std::cout << "Exporting: " << filename << std::endl;
 }
 
-//Main testing code
-//-------------
-int main(int argc, char **argv)
-{  
-
-    int grid_resolution = 32;
-    float timestep = 0.01f;
-    float grid_width = 1;
+int main() {
+    int isize = 32;
+    int jsize = 32;
+    int ksize = 32;
+    float dx = 1.0 / (float)isize;
     FluidSim sim;
 
     printf("Initializing data\n");
-    sim.initialize(grid_resolution, grid_resolution, grid_resolution, grid_width);
+    sim.initialize(isize, jsize, ksize, dx);
     
     printf("Initializing boundary\n");
     TriangleMesh boundaryMesh;
     bool success = boundaryMesh.loadBOBJ("bunny.bobj");
+    boundaryMesh.writeMeshToPLY("bunny.ply");
     FLUIDSIM_ASSERT(success);
-    sim.addBoundary(boundaryMesh);
+    sim.addBoundary(boundaryMesh, false);
     
     printf("Initializing liquid\n");
     TriangleMesh liquidMesh;
@@ -55,16 +48,16 @@ int main(int argc, char **argv)
     FLUIDSIM_ASSERT(success);
     sim.addLiquid(liquidMesh);
 
+    sim.setViscosity(1.0);
+
     int num_frames = 300;
+    float timestep = 0.01f;
     for(int frame = 0; frame < num_frames; frame++) {
         export_particles(frame, sim.particles);
 
-        //Simulate
         printf("Simulating liquid\n");
         sim.advance(timestep);
     }
 
     return 0;
 }
-
-

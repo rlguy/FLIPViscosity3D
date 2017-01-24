@@ -82,6 +82,10 @@ void ParticleLevelSet::calculateSignedDistanceField(std::vector<vmath::vec3> &pa
     _extrapolateSignedDistanceIntoSolids(solidPhi);
 }
 
+float ParticleLevelSet::trilinearInterpolate(vmath::vec3 pos) {
+    return Interpolation::trilinearInterpolate(pos - vmath::vec3(0.5*_dx, 0.5*_dx, 0.5*_dx), _dx, _phi);
+}
+
 float ParticleLevelSet::_getMaxDistance() {
     return 3.0 * _dx;
 }

@@ -25,8 +25,9 @@ MeshLevelSet::MeshLevelSet() {
 
 MeshLevelSet::MeshLevelSet(int isize, int jsize, int ksize, double dx) :
                 _isize(isize), _jsize(jsize), _ksize(ksize), _dx(dx),
-                _phi(isize + 1, jsize + 1, ksize + 1, 0.0), 
-                _closestTriangles(isize + 1, jsize + 1, ksize + 1, -1) {
+                            _closestTriangles(isize + 1, jsize + 1, ksize + 1, -1) {
+
+    _phi = Array3d<float>(isize + 1, jsize + 1, ksize + 1, 0.0);
 }
 
 MeshLevelSet::~MeshLevelSet() {

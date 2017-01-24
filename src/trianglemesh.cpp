@@ -300,6 +300,12 @@ std::string TriangleMesh::getFileExtension(TriangleMeshFormat fmt) {
     }
 }
 
+void TriangleMesh::translate(vmath::vec3 t) {
+    for (size_t i = 0; i < vertices.size(); i++) {
+        vertices[i] += t;
+    }
+}
+
 bool TriangleMesh::_getPLYHeader(std::ifstream *file, std::string *header) {
     file->seekg(0, std::ios_base::beg);
 

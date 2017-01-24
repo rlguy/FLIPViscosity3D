@@ -10,16 +10,20 @@
 #include "pressuresolver.h"
 #include "meshlevelset.h"
 #include "fluidsimassert.h"
+#include "stopwatch.h"
+#include "viscositysolver.h"
 
 #include <vector>
 
 class FluidSim {
 
 public:
-    void initialize(int i, int j, int k, float width);
+    void initialize(int i, int j, int k, float dx);
     void addBoundary(TriangleMesh &boundary, bool isInverted = false);
     void resetBoundary();
     void addLiquid(TriangleMesh &mesh);
+    void setViscosity(float value);
+    void setViscosity(Array3d<float> &vgrid);
     void advance(float dt);
 
     std::vector<vmath::vec3> particles;
@@ -40,6 +44,9 @@ private:
     void _project(float dt);
     void _extrapolateVelocityField();
     void _constrainVelocityField();
+
+    // viscosity
+    void _applyViscosity(float dt);
 
     //helpers for pressure projection
     void _computeWeights();
@@ -78,6 +85,7 @@ private:
 
     double _minfrac = 0.01f;
 
+    Array3d<float> _viscosity;
 };
 
 

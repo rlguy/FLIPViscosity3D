@@ -51,6 +51,7 @@ public:
     int numVertices();
     int numFaces();
     int numTriangles() { return numFaces(); }
+    void translate(vmath::vec3 t);
 
     std::vector<vmath::vec3> vertices;
     std::vector<vmath::vec3> vertexcolors;  // r, g, b values in range [0.0, 1.0]
