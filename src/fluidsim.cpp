@@ -14,6 +14,7 @@ void FluidSim::initialize(int i, int j, int k, float dx) {
     _liquidSDF = ParticleLevelSet(_isize, _jsize, _ksize, _dx);
     _weightGrid = WeightGrid(_isize, _jsize, _ksize);
     _viscosity = Array3d<float>(_isize + 1, _jsize + 1, _ksize + 1, 1.0);
+    _gravity = vmath::vec3(0.0f, -9.81f, 0.0f);
 
     _initializeBoundary();
 }
@@ -97,6 +98,14 @@ void FluidSim::setViscosity(Array3d<float> &vgrid) {
             }
         }
     }
+}
+
+void FluidSim::setGravity(vmath::vec3 gravity) {
+    _gravity = gravity;
+}
+
+void FluidSim::setGravity(float gx, float gy, float gz) {
+    setGravity(vmath::vec3(gx, gy, gz));
 }
 
 //The main fluid simulation step
@@ -249,10 +258,30 @@ void FluidSim::_addBodyForce(float dt) {
     }
 
     for(int k = 0;k < _ksize; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize + 1; i++) {
+                if (Grid3d::isFaceBorderingValueU(i, j, k, true, fgrid)) {
+                    _MACVelocity.addU(i, j, k, _gravity.x * dt);
+                }
+            }
+        }
+    }
+
+    for(int k = 0;k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
                 if (Grid3d::isFaceBorderingValueV(i, j, k, true, fgrid)) {
-                    _MACVelocity.addV(i, j, k, -9.81f * dt);
+                    _MACVelocity.addV(i, j, k, _gravity.y * dt);
+                }
+            }
+        }
+    }
+
+    for(int k = 0;k < _ksize + 1; k++) {
+        for(int j = 0; j < _jsize; j++) {
+            for(int i = 0; i < _isize; i++) {
+                if (Grid3d::isFaceBorderingValueW(i, j, k, true, fgrid)) {
+                    _MACVelocity.addW(i, j, k, _gravity.z * dt);
                 }
             }
         }

@@ -34,6 +34,8 @@ public:
     void addLiquid(TriangleMesh &mesh);
     void setViscosity(float value);
     void setViscosity(Array3d<float> &vgrid);
+    void setGravity(vmath::vec3 gravity);
+    void setGravity(float gx, float gy, float gz);
     void advance(float dt);
 
     std::vector<FluidParticle> particles;
@@ -106,6 +108,7 @@ private:
     double _ratioPICtoFLIP = 0.05f;
 
     Array3d<float> _viscosity;
+    vmath::vec3 _gravity;
 };
 
 

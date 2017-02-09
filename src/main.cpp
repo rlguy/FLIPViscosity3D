@@ -49,6 +49,7 @@ int main() {
     sim.addLiquid(liquidMesh);
 
     sim.setViscosity(0.05);
+    sim.setGravity(0.0, -9.81, 0.0);
 
     int num_frames = 300;
     float timestep = 0.01f;
