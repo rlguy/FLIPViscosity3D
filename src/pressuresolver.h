@@ -37,7 +37,6 @@ freely, subject to the following restrictions:
 #include <algorithm>
 
 #include "macvelocityfield.h"
-#include "gridindexkeymap.h"
 #include "grid3d.h"
 #include "array3d.h"
 #include "fluidsimassert.h"
@@ -122,6 +121,44 @@ public:
     }
 
     std::vector<MatrixCell> cells;
+};
+
+/********************************************************************************
+    GridIndexKeyMap
+********************************************************************************/
+
+class GridIndexKeyMap
+{
+public:
+    GridIndexKeyMap();
+    GridIndexKeyMap(int i, int j, int k);
+    ~GridIndexKeyMap();
+
+    void clear();
+    void insert(GridIndex g, int key);
+    void insert(int i, int j, int k, int key);
+    int find(GridIndex g);
+    int find(int i, int j, int k);
+
+private:
+
+    inline unsigned int _getFlatIndex(int i, int j, int k) {
+        return (unsigned int)i + (unsigned int)_isize *
+               ((unsigned int)j + (unsigned int)_jsize * (unsigned int)k);
+    }
+
+    inline unsigned int _getFlatIndex(GridIndex g) {
+        return (unsigned int)g.i + (unsigned int)_isize *
+               ((unsigned int)g.j + (unsigned int)_jsize * (unsigned int)g.k);
+    }
+
+    int _isize = 0;
+    int _jsize = 0;
+    int _ksize = 0;
+
+    std::vector<int> _indices;
+    int _notFoundValue = -1;
+
 };
 
 /********************************************************************************
