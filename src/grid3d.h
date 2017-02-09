@@ -520,6 +520,42 @@ namespace Grid3d {
         int k = flatidx / (jsize * isize); 
         return GridIndex(i, j, k);
     }
+
+    template <class T>
+    inline bool isFaceBorderingValueU(int i, int j, int k, T m, Array3d<T> &grid) {
+        if (i == grid.width) { return grid(i - 1, j, k) == m; }
+        else if (i > 0) { return grid(i, j, k) == m || grid(i - 1, j, k) == m; }
+        else { return grid(i, j, k) == m; }
+    }
+
+    template <class T>
+    inline bool isFaceBorderingValueU(GridIndex g, T m, Array3d<T> &grid) {
+        return isFaceBorderingValueU(g.i, g.j, g.k, m, grid);
+    }
+
+    template <class T>
+    inline bool isFaceBorderingValueV(int i, int j, int k, T m, Array3d<T> &grid) {
+        if (j == grid.height) { return grid(i, j - 1, k) == m; }
+        else if (j > 0) { return grid(i, j, k) == m || grid(i, j - 1, k) == m; }
+        else { return grid(i, j, k) == m; }
+    }
+
+    template <class T>
+    inline bool isFaceBorderingValueV(GridIndex g, T m, Array3d<T> &grid) {
+        return isFaceBorderingValueV(g.i, g.j, g.k, m, grid);
+    }
+
+    template <class T>
+    inline bool isFaceBorderingValueW(int i, int j, int k, T m, Array3d<T> &grid) {
+        if (k == grid.depth) { return grid(i, j, k - 1) == m; }
+        else if (k > 0) { return grid(i, j, k) == m || grid(i, j, k - 1) == m; }
+        else { return grid(i, j, k) == m; }
+    }
+
+    template <class T>
+    inline bool isFaceBorderingValueW(GridIndex g, T m, Array3d<T> &grid) {
+        return isFaceBorderingValueW(g.i, g.j, g.k, m, grid);
+    }
 }
 
 #endif

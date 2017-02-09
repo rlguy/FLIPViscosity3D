@@ -50,9 +50,9 @@ private:
     void _updateLiquidSDF();
 
     void _advectVelocityField(float dt);
-    void _advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid);
-    void _advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid);
-    void _advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid);
+    void _advectVelocityFieldU(Array3d<bool> &fluidCellGrid);
+    void _advectVelocityFieldV(Array3d<bool> &fluidCellGrid);
+    void _advectVelocityFieldW(Array3d<bool> &fluidCellGrid);
     void _computeVelocityScalarField(Array3d<float> &field, 
                                      Array3d<bool> &isValueSet, 
                                      int dir);

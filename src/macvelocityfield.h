@@ -26,7 +26,6 @@ freely, subject to the following restrictions:
 #include <limits>
 #include <time.h>
 
-#include "fluidmaterialgrid.h"
 #include "array3d.h"
 #include "grid3d.h"
 #include "interpolation.h"

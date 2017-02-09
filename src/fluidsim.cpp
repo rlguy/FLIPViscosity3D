@@ -258,12 +258,12 @@ float FluidSim::_cfl() {
 }
 
 void FluidSim::_addBodyForce(float dt) {
-    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    Array3d<bool> fgrid(_isize, _jsize, _ksize, false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if (_liquidSDF(i, j, k) < 0.0) {
-                    mgrid.setFluid(i, j, k);
+                    fgrid.set(i, j, k, true);
                 }
             }
         }
@@ -272,7 +272,7 @@ void FluidSim::_addBodyForce(float dt) {
     for(int k = 0;k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                if (mgrid.isFaceBorderingFluidV(i, j, k)) {
+                if (Grid3d::isFaceBorderingValueV(i, j, k, true, fgrid)) {
                     _MACVelocity.addV(i, j, k, -9.81f * dt);
                 }
             }
@@ -405,7 +405,7 @@ void FluidSim::_computeVelocityScalarField(Array3d<float> &field,
     }
 }
 
-void FluidSim::_advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid) {
+void FluidSim::_advectVelocityFieldU(Array3d<bool> &fluidCellGrid) {
     Array3d<float> ugrid = Array3d<float>(_isize + 1, _jsize, _ksize, 0.0f);
     Array3d<bool> isValueSet = Array3d<bool>(_isize + 1, _jsize, _ksize, false);
     _computeVelocityScalarField(ugrid, isValueSet, 0);
@@ -414,7 +414,7 @@ void FluidSim::_advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid) {
     for (int k = 0; k < ugrid.depth; k++) {
         for (int j = 0; j < ugrid.height; j++) {
             for (int i = 0; i < ugrid.width; i++) {
-                if (fluidCellGrid.isFaceBorderingFluidU(i, j, k)) {
+                if (Grid3d::isFaceBorderingValueU(i, j, k, true, fluidCellGrid)) {
                     if (isValueSet(i, j, k)) {
                         _MACVelocity.setU(i, j, k, ugrid(i, j, k));
                         _validVelocities.validU.set(i, j, k, true);
@@ -425,7 +425,7 @@ void FluidSim::_advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid) {
     }
 }
 
-void FluidSim::_advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid) {
+void FluidSim::_advectVelocityFieldV(Array3d<bool> &fluidCellGrid) {
     Array3d<float> vgrid = Array3d<float>(_isize, _jsize + 1, _ksize, 0.0f);
     Array3d<bool> isValueSet = Array3d<bool>(_isize, _jsize + 1, _ksize, false);
     _computeVelocityScalarField(vgrid, isValueSet, 1);
@@ -434,7 +434,7 @@ void FluidSim::_advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid) {
     for (int k = 0; k < vgrid.depth; k++) {
         for (int j = 0; j < vgrid.height; j++) {
             for (int i = 0; i < vgrid.width; i++) {
-                if (fluidCellGrid.isFaceBorderingFluidV(i, j, k)) {
+                if (Grid3d::isFaceBorderingValueV(i, j, k, true, fluidCellGrid)) {
                     if (isValueSet(i, j, k)) {
                         _MACVelocity.setV(i, j, k, vgrid(i, j, k));
                         _validVelocities.validV.set(i, j, k, true);
@@ -445,7 +445,7 @@ void FluidSim::_advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid) {
     }
 }
 
-void FluidSim::_advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid) {
+void FluidSim::_advectVelocityFieldW(Array3d<bool> &fluidCellGrid) {
     Array3d<float> wgrid = Array3d<float>(_isize, _jsize, _ksize + 1, 0.0f);
     Array3d<bool> isValueSet = Array3d<bool>(_isize, _jsize, _ksize + 1, 0.0f);
     _computeVelocityScalarField(wgrid, isValueSet, 2);
@@ -454,7 +454,7 @@ void FluidSim::_advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid) {
     for (int k = 0; k < wgrid.depth; k++) {
         for (int j = 0; j < wgrid.height; j++) {
             for (int i = 0; i < wgrid.width; i++) {
-                if (fluidCellGrid.isFaceBorderingFluidW(i, j, k)) {
+                if (Grid3d::isFaceBorderingValueW(i, j, k, true, fluidCellGrid)) {
                     if (isValueSet(i, j, k)) {
                         _MACVelocity.setW(i, j, k, wgrid(i, j, k));
                         _validVelocities.validW.set(i, j, k, true);
@@ -466,13 +466,12 @@ void FluidSim::_advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid) {
 }
 
 void FluidSim::_advectVelocityField(float dt) {
-
-    FluidMaterialGrid fluidCellGrid(_isize, _jsize, _ksize);
+    Array3d<bool> fluidCellGrid(_isize, _jsize, _ksize, false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if (_liquidSDF(i, j, k) < 0.0) {
-                    fluidCellGrid.setFluid(i, j, k);
+                    fluidCellGrid.set(i, j, k, true);
                 }
             }
         }
@@ -577,12 +576,12 @@ Array3d<float> FluidSim::_solvePressure(float dt) {
 }
 
 void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
-    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
+    Array3d<bool> fgrid(_isize, _jsize, _ksize, false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
                 if (_liquidSDF(i, j, k) < 0.0) {
-                    mgrid.setFluid(i, j, k);
+                    fgrid.set(i, j, k, true);
                 }
             }
         }
@@ -593,7 +592,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 1; i < _isize; i++) {
 
-                if (_weightGrid.U(i, j, k) > 0 && mgrid.isFaceBorderingFluidU(i, j, k)) {
+                if (_weightGrid.U(i, j, k) > 0 && Grid3d::isFaceBorderingValueU(i, j, k, true, fgrid)) {
                     float p0 = pressureGrid(i-1, j, k);
                     float p1 = pressureGrid(i, j, k);
                     float theta = fmax(_liquidSDF.getFaceWeightU(i, j, k), _minfrac);
@@ -609,7 +608,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 1; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                if (_weightGrid.V(i, j, k) > 0 && mgrid.isFaceBorderingFluidV(i, j, k)) {
+                if (_weightGrid.V(i, j, k) > 0 && Grid3d::isFaceBorderingValueV(i, j, k, true, fgrid)) {
                     float p0 = pressureGrid(i, j - 1, k);
                     float p1 = pressureGrid(i, j, k);
                     float theta = fmax(_liquidSDF.getFaceWeightV(i, j, k), _minfrac);
@@ -625,7 +624,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize; i++) {
 
-                if (_weightGrid.W(i, j, k) > 0 && mgrid.isFaceBorderingFluidW(i, j, k)) {
+                if (_weightGrid.W(i, j, k) > 0 && Grid3d::isFaceBorderingValueW(i, j, k, true, fgrid)) {
                     float p0 = pressureGrid(i, j, k - 1);
                     float p1 = pressureGrid(i, j, k);
                     float theta = fmax(_liquidSDF.getFaceWeightW(i, j, k), _minfrac);
