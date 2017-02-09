@@ -175,6 +175,7 @@ private:
     MatrixIndexer _matrixIndex;
 
     double _solverTolerance = 1e-6;
+    double _acceptableTolerace = 10.0;
     int _maxSolverIterations = 700;
 
 };

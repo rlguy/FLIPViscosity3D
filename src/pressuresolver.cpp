@@ -135,8 +135,8 @@ Array3d<float> PressureSolver::solve(PressureSolverParameters params) {
     _solvePressureSystem(A, b, precon, pressure);
 
     Array3d<float> pressureGrid(_isize, _jsize, _ksize, 0.0);
-    for (size_t i = 0; i < _pressureCells->size(); i++) {
-        GridIndex g = _pressureCells->get(i);
+    for (int i = 0; i < (int)_pressureCells.size(); i++) {
+        GridIndex g = _pressureCells[i];
         pressureGrid.set(g, pressure[i]);
     }
 
@@ -149,27 +149,38 @@ void PressureSolver::_initialize(PressureSolverParameters params) {
     _density = params.density;
     _deltaTime = params.deltaTime;
 
-    _pressureCells = params.pressureCells;
     _vField = params.velocityField;
     _liquidSDF = params.liquidSDF;
     _weightGrid = params.weightGrid;
-    //_logfile = params.logfile;
-    _matSize = (int)_pressureCells->size();
+
+    _pressureCells = std::vector<GridIndex>();
+    for(int k = 1; k < _ksize - 1; k++) {
+        for(int j = 1; j < _jsize - 1; j++) {
+            for(int i = 1; i < _isize - 1; i++) {
+                if(_liquidSDF->get(i, j, k) < 0) {
+                    _pressureCells.push_back(GridIndex(i, j, k));
+                }
+            }
+        }
+    }
+
+    _matSize = (int)_pressureCells.size();
 }
 
 void PressureSolver::_initializeGridIndexKeyMap() {
     _keymap = GridIndexKeyMap(_isize, _jsize, _ksize);
-    for (unsigned int idx = 0; idx < _pressureCells->size(); idx++) {
-        _keymap.insert(_pressureCells->at(idx), idx);
+    for (unsigned int idx = 0; idx < _pressureCells.size(); idx++) {
+        _keymap.insert(_pressureCells[idx], idx);
     }
 }
 
 void PressureSolver::_calculateNegativeDivergenceVector(VectorXd &b) {
-
-    for (size_t idx = 0; idx < _pressureCells->size(); idx++) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    GridIndex g;
+    for (int idx = 0; idx < (int)_pressureCells.size(); idx++) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
 
         double divergence = 0.0;
         divergence -= _weightGrid->U(i + 1, j, k) * _vField->U(i + 1, j, k);
@@ -187,10 +198,12 @@ void PressureSolver::_calculateNegativeDivergenceVector(VectorXd &b) {
 void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
 
     double scale = _deltaTime / (_dx * _dx);
-    for (size_t idx = 0; idx < _pressureCells->size(); idx++) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    GridIndex g;
+    for (int idx = 0; idx < (int)_pressureCells.size(); idx++) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
         int index = _GridToVectorIndex(i, j, k);
 
         //right neighbour
@@ -263,10 +276,12 @@ void PressureSolver::_calculatePreconditionerVector(MatrixCoefficients &A, Vecto
 
     double tau = 0.97;      // Tuning constant
     double sigma = 0.25;    // safety constant
-    for (unsigned int idx = 0; idx < _pressureCells->size(); idx++) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    GridIndex g;
+    for (unsigned int idx = 0; idx < _pressureCells.size(); idx++) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
         int vidx = _GridToVectorIndex(i, j, k);
 
         int vidx_im1 = _keymap.find(i - 1, j, k);
@@ -319,10 +334,12 @@ void PressureSolver::_applyPreconditioner(MatrixCoefficients &A,
                                           VectorXd &vect) {
     // Solve A*q = residual
     VectorXd q(_matSize);
-    for (unsigned int idx = 0; idx < _pressureCells->size(); idx++) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    GridIndex g;
+    for (unsigned int idx = 0; idx < _pressureCells.size(); idx++) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
         int vidx = _GridToVectorIndex(i, j, k);
 
         int vidx_im1 = _keymap.find(i - 1, j, k);
@@ -365,10 +382,11 @@ void PressureSolver::_applyPreconditioner(MatrixCoefficients &A,
     }
 
     // Solve transpose(A)*z = q
-    for (int idx = (int)_pressureCells->size() - 1; idx >= 0; idx--) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    for (int idx = (int)_pressureCells.size() - 1; idx >= 0; idx--) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
         int vidx = _GridToVectorIndex(i, j, k);
 
         int vidx_ip1 = _keymap.find(i + 1, j, k);
@@ -396,10 +414,12 @@ void PressureSolver::_applyPreconditioner(MatrixCoefficients &A,
 void PressureSolver::_applyMatrix(MatrixCoefficients &A, VectorXd &x, VectorXd &result) {
     FLUIDSIM_ASSERT(A.size() == x.size() && x.size() == result.size());
 
-    for (unsigned int idx = 0; idx < _pressureCells->size(); idx++) {
-        int i = _pressureCells->at(idx).i;
-        int j = _pressureCells->at(idx).j;
-        int k = _pressureCells->at(idx).k;
+    GridIndex g;
+    for (unsigned int idx = 0; idx < _pressureCells.size(); idx++) {
+        g = _pressureCells[idx];
+        int i = g.i;
+        int j = g.j;
+        int k = g.k;
         int ridx = _GridToVectorIndex(i, j, k);
 
         // val = dot product of column vector x and idxth row of matrix A
@@ -477,8 +497,8 @@ void PressureSolver::_solvePressureSystem(MatrixCoefficients &A,
         _addScaledVector(residual, auxillary, -alpha);
 
         if (residual.absMaxCoeff() < tol) {
-            //_logfile->log("CG Iterations: ", iterationNumber, 1);
-            std::cout << "CG Iterations: " << iterationNumber << std::endl;
+            std::cout << "\n\tPressure Solver Iterations: " << iterationNumber <<
+                         "\n\tEstimated Error: " << residual.absMaxCoeff() << "\n\n";
             return;
         }
 
@@ -489,16 +509,9 @@ void PressureSolver::_solvePressureSystem(MatrixCoefficients &A,
         sigma = sigmaNew;
 
         iterationNumber++;
-
-        if (iterationNumber % 10 == 0) {
-            std::ostringstream ss;
-            ss << "\tIteration #: " << iterationNumber <<
-                  "\tEstimated Error: " << residual.absMaxCoeff() << std::endl;
-            //_logfile->print(ss.str());
-            std::cout << ss.str();
-        }
     }
 
-    //_logfile->log("Iterations limit reached.\t Estimated error : ",
-    //              residual.absMaxCoeff(), 1);
-}   //
+    std::cout << "\n\tPressure Solver FAILED" <<
+                 "\n\tPressure Solver Iterations: " << iterationNumber <<
+                 "\n\tEstimated Error: " << residual.absMaxCoeff() << "\n\n";
+}   

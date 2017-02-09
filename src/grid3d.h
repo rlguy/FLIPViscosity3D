@@ -28,7 +28,6 @@ freely, subject to the following restrictions:
 #include "vmath.h"
 #include "array3d.h"
 #include "aabb.h"
-#include "gridindexvector.h"
 
 namespace Grid3d {
     
@@ -450,36 +449,6 @@ namespace Grid3d {
         *g2 = GridIndex((int)fmin((*g2).i, gmax.i-1), 
                          (int)fmin((*g2).j, gmax.j-1), 
                          (int)fmin((*g2).k, gmax.k-1));
-    }
-
-    inline void getGridCellOverlap(AABB bbox, double dx, int imax, int jmax, int kmax, 
-                                   GridIndexVector &cells) {
-        GridIndex gmin, gmax;
-        getGridIndexBounds(bbox, dx, imax, jmax, kmax, &gmin, &gmax);
-
-        cells.reserve(cells.size() + (gmax.i - gmin.i)*(gmax.j - gmin.j)*(gmax.k - gmin.k));
-        for (int k = gmin.k; k <= gmax.k; k++) {
-            for (int j = gmin.j; j <= gmax.j; j++) {
-                for (int i = gmin.i; i <= gmax.i; i++) {
-                    cells.push_back(i, j, k);
-                }
-            }
-        }
-    }
-
-    inline void getGridCellOverlap(AABB bbox, double dx, GridIndexVector &cells) {
-        vmath::vec3 trans = vmath::vec3(bbox.width, bbox.height, bbox.depth);
-        GridIndex gmin = positionToGridIndex(bbox.position, dx);
-        GridIndex gmax = positionToGridIndex(bbox.position + trans, dx);
-
-        cells.reserve(cells.size() + (gmax.i - gmin.i)*(gmax.j - gmin.j)*(gmax.k - gmin.k));
-        for (int k = gmin.k; k <= gmax.k; k++) {
-            for (int j = gmin.j; j <= gmax.j; j++) {
-                for (int i = gmin.i; i <= gmax.i; i++) {
-                    cells.push_back(i, j, k);
-                }
-            }
-        }
     }
 
     inline AABB fitAABBtoGrid(AABB bbox, double dx, int imax, int jmax, int kmax) {

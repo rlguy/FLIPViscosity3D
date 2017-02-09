@@ -649,9 +649,21 @@ bool ViscositySolver::_solveLinearSystem(SparseMatrixd &matrix, std::vector<doub
     double estimatedError;
     int numIterations;
     bool success = solver.solve(matrix, rhs, soln, estimatedError, numIterations);
-    std::cout << "\tVISCOSITY ITERATIONS: " << numIterations << " " << estimatedError << std::endl;
 
-    return success;
+    if (success) {
+        std::cout << "\n\tViscosity Solver Iterations: " << numIterations <<
+                     "\n\tEstimated Error: " << estimatedError << "\n\n";
+        return true;
+    } else if (numIterations == _maxSolverIterations && estimatedError < _acceptableTolerace) {
+        std::cout << "\n\tViscosity Solver Iterations: " << numIterations <<
+                     "\n\tEstimated Error: " << estimatedError << "\n\n";
+        return true;
+    } else {
+        std::cout << "\n\t***Viscosity Solver FAILED" <<
+              "\n\tViscosity Solver Iterations: " << numIterations <<
+              "\n\tEstimated Error: " << estimatedError << "\n\n";
+        return false;
+    }
 }
 
 void ViscositySolver::_applySolutionToVelocityField(std::vector<double> &soln) {

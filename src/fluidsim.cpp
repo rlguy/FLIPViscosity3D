@@ -110,22 +110,25 @@ void FluidSim::advance(float dt) {
         }
         printf("Taking substep of size %f (to %0.3f%% of the frame)\n", substep, 100 * (t+substep)/dt);
 
-        printf(" Compute liquid signed distance field\n");
+        std::cout << "Compute liquid signed distance field" << std::endl;
         _updateLiquidSDF();
 
-        printf(" Velocity advection\n");
+        std::cout << "Velocity advection" << std::endl;
         _advectVelocityField(substep);
 
+        std::cout << "Add body force" << std::endl;
         _addBodyForce(substep);
 
+        std::cout << "Apply viscosity" << std::endl;
         _applyViscosity(substep);
 
-        printf(" Pressure projection\n");
+        std::cout << "Pressure projection" << std::endl;
         _project(substep); 
      
+        std::cout << "Constrain velocity field" << std::endl;
         _constrainVelocityField();
 
-        printf(" Surface (particle) advection\n");
+        std::cout << "Advect fluid particles" << std::endl;
         _advectFluidParticles(substep);
 
         t += substep;
@@ -133,8 +136,6 @@ void FluidSim::advance(float dt) {
 }
 
 void FluidSim::_applyViscosity(float dt) {
-    printf("Apply Viscosity\n");
-
     bool isViscosityNonZero = false;
     for (int k = 0; k < _viscosity.depth; k++) {
         for (int j = 0; j < _viscosity.height; j++) {
@@ -551,22 +552,10 @@ void FluidSim::_computeWeights() {
 
 //An implementation of the variational _pressure projection solve for static geometry
 Array3d<float> FluidSim::_solvePressure(float dt) {
-    GridIndexVector pressureCells(_isize, _jsize, _ksize);
-    for(int k = 1; k < _ksize - 1; k++) {
-        for(int j = 1; j < _jsize - 1; j++) {
-            for(int i = 1; i < _isize - 1; i++) {
-                if(_liquidSDF(i, j, k) < 0) {
-                    pressureCells.push_back(i, j, k);
-                }
-            }
-        }
-    }
-
     PressureSolverParameters params;
     params.cellwidth = _dx;
     params.density = 1.0;
     params.deltaTime = dt;
-    params.pressureCells = &pressureCells;
     params.velocityField = &_MACVelocity;
     params.liquidSDF = &_liquidSDF;
     params.weightGrid = &_weightGrid;
@@ -679,6 +668,7 @@ void FluidSim::_constrainVelocityField() {
             for(int i = 0; i < _isize + 1; i++) {
                 if(_weightGrid.U(i, j, k) == 0) {
                     _MACVelocity.setU(i, j, k, 0.0);
+                    _savedVelocityField.setU(i, j, k, 0.0);
                 }
             }
         }
@@ -689,6 +679,7 @@ void FluidSim::_constrainVelocityField() {
             for(int i = 0; i < _isize; i++) {
                 if(_weightGrid.V(i, j, k) == 0) {
                     _MACVelocity.setV(i, j, k, 0.0);
+                    _savedVelocityField.setV(i, j, k, 0.0);
                 }
             }
         }
@@ -699,6 +690,7 @@ void FluidSim::_constrainVelocityField() {
             for(int i = 0; i < _isize; i++) {
                 if(_weightGrid.W(i, j, k) == 0) {
                     _MACVelocity.setW(i, j, k, 0.0);
+                    _savedVelocityField.setW(i, j, k, 0.0);
                 }
             }
         }

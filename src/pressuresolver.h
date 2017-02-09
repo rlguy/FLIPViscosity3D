@@ -38,10 +38,8 @@ freely, subject to the following restrictions:
 
 #include "macvelocityfield.h"
 #include "gridindexkeymap.h"
-//#include "logfile.h"
 #include "grid3d.h"
 #include "array3d.h"
-#include "gridindexvector.h"
 #include "fluidsimassert.h"
 #include "particlelevelset.h"
 
@@ -62,13 +60,10 @@ struct PressureSolverParameters {
     double cellwidth;
     double density;
     double deltaTime;
-
-    GridIndexVector *pressureCells;
+    
     MACVelocityField *velocityField;
     ParticleLevelSet *liquidSDF;
     WeightGrid *weightGrid;
-
-    //LogFile *logfile;
 };
 
 /********************************************************************************
@@ -150,7 +145,7 @@ private:
         return _keymap.find(i, j, k);
     }
     inline GridIndex _VectorToGridIndex(int i) {
-        return _pressureCells->at(i);
+        return _pressureCells.at(i);
     }
     inline int _isPressureCell(GridIndex g) {
         return _keymap.find(g) != -1;
@@ -190,12 +185,12 @@ private:
     int _maxCGIterations = 200;
     double _minfrac = 0.01f;
 
-    GridIndexVector *_pressureCells;
+    std::vector<GridIndex> _pressureCells;
+
     MACVelocityField *_vField;
     ParticleLevelSet *_liquidSDF;
     WeightGrid *_weightGrid;
 
-    //LogFile *_logfile;
     GridIndexKeyMap _keymap;
 
 };
