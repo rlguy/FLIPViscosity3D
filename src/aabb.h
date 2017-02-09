@@ -41,7 +41,6 @@ public:
 
     void expand(double v);
     bool isPointInside(vmath::vec3 p);
-    bool isOverlappingTriangle(Triangle t, std::vector<vmath::vec3> &vertices);
     bool isLineIntersecting(vmath::vec3 p1, vmath::vec3 p2);
     AABB getIntersection(AABB bbox);
     AABB getUnion(AABB bbox);
@@ -56,21 +55,6 @@ public:
     double height = 0.0;
     double depth = 0.0;
 
-private:
-    bool _axisTestX01(vmath::vec3 v0, vmath::vec3 v2,
-        double a, double b, double fa, double fb);
-    bool _axisTestX2(vmath::vec3 v0, vmath::vec3 v1,
-        double a, double b, double fa, double fb);
-    bool _axisTestY02(vmath::vec3 v0, vmath::vec3 v2,
-        double a, double b, double fa, double fb);
-    bool _axisTestY1(vmath::vec3 v0, vmath::vec3 v1,
-        double a, double b, double fa, double fb);
-    bool _axisTestZ12(vmath::vec3 v1, vmath::vec3 v2,
-        double a, double b, double fa, double fb);
-    bool _axisTestZ0(vmath::vec3 v0, vmath::vec3 v1,
-        double a, double b, double fa, double fb);
-    void _findminmax(double v0, double v1, double v2, double *min, double *max);
-    bool _planeBoxOverlap(vmath::vec3 normal, vmath::vec3 vert);
 };
 
 #endif
