@@ -193,39 +193,17 @@ TriangleMesh FluidSim::_getTriangleMeshFromAABB(AABB bbox) {
 TriangleMesh FluidSim::_getBoundaryTriangleMesh() {
     double eps = 1e-6;
     AABB domainAABB(0.0, 0.0, 0.0, _isize * _dx, _jsize * _dx, _ksize * _dx);
-    AABB outerAABB = domainAABB;
-    outerAABB.expand(-eps);
-    AABB innerAABB = domainAABB;
-    innerAABB.expand(-3 * _dx - eps);
+    domainAABB.expand(-3 * _dx - eps);
 
-    TriangleMesh domainMesh = _getTriangleMeshFromAABB(outerAABB);
-    TriangleMesh innerMesh = _getTriangleMeshFromAABB(innerAABB);
-    int indexOffset = domainMesh.vertices.size();
-    domainMesh.vertices.insert(domainMesh.vertices.end(), 
-                               innerMesh.vertices.begin(), innerMesh.vertices.end());
-    for (size_t i = 0; i < innerMesh.triangles.size(); i++) {
-        Triangle t = innerMesh.triangles[i];
-        t.tri[0] += indexOffset;
-        t.tri[1] += indexOffset;
-        t.tri[2] += indexOffset;
-        domainMesh.triangles.push_back(t);
-    }
-
+    TriangleMesh domainMesh = _getTriangleMeshFromAABB(domainAABB);
     return domainMesh;
 }
 
 void FluidSim::_initializeBoundary() {
     TriangleMesh boundaryMesh = _getBoundaryTriangleMesh();
     _solidSDF = MeshLevelSet(_isize, _jsize, _ksize, _dx);
-    _solidSDF.calculateSignedDistanceField(boundaryMesh, 50);
-
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize + 1; j++) { 
-            for(int i = 0; i < _isize + 1; i++) {
-                vmath::vec3 p = Grid3d::GridIndexToPosition(i, j, k, _dx);
-            }
-        }
-    }
+    _solidSDF.calculateSignedDistanceField(boundaryMesh, _meshLevelSetExactBand);
+    _solidSDF.negate();
 }
 
 float FluidSim::_cfl() {
