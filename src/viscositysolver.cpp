@@ -130,7 +130,7 @@ void ViscositySolver::_computeVolumeGrid() {
         for (int k = 0; k < _ksize + 1; k++) {
             for (int j = 0; j < _jsize + 1; j++) {
                 for (int i = 0; i < _isize + 1; i++) {
-                    if (tempValid(i, j, k)) {
+                    if (validCells(i, j, k)) {
                         Grid3d::getNeighbourGridIndices6(i, j, k, nbs);
                         for (int nidx = 0; nidx < 6; nidx++) {
                             if (tempValid.isIndexInRange(nbs[nidx])) {
@@ -525,7 +525,7 @@ void ViscositySolver::_initializeLinearSystemV(SparseMatrixd &matrix, std::vecto
                 if (_state.V(i - 1, j,     k)     == SOLID) { rval -= -factorLeft   * _velocityField->V(i - 1, j,     k    ); }
                 if (_state.V(i,     j + 1, k)     == SOLID) { rval -= -factorTop    * _velocityField->V(i,     j + 1, k    ); }
                 if (_state.V(i ,    j - 1, k)     == SOLID) { rval -= -factorBottom * _velocityField->V(i,     j - 1, k    ); }
-                if (_state.V(i + 1, j,     k)     == SOLID) { rval -= -factorFront  * _velocityField->V(i,     j,     k + 1); }
+                if (_state.V(i,     j,     k + 1) == SOLID) { rval -= -factorFront  * _velocityField->V(i,     j,     k + 1); }
                 if (_state.V(i,     j,     k - 1) == SOLID) { rval -= -factorBack   * _velocityField->V(i,     j,     k - 1); }
 
                 if (_state.U(i + 1, j,     k)     == SOLID) { rval -= -factorRight  * _velocityField->U(i + 1, j,     k    ); }
