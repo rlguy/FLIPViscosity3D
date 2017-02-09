@@ -570,70 +570,35 @@ void FluidSim::_extrapolateVelocityField() {
     _MACVelocity.extrapolateVelocityField(_validVelocities, _numExtrapolationLayers);
 }
 
-//For extrapolated points, replace the normal component
-//of velocity with the object velocity (in this case zero).
 void FluidSim::_constrainVelocityField() {
-    _tempMACVelocity.set(_MACVelocity);
-
-    //(At lower grid resolutions, the normal estimate from the signed
-    //distance function can be poor, so it doesn't work quite as well.
-    //An exact normal would do better if we had it for the geometry.)
-
-    //constrain u
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
             for(int i = 0; i < _isize + 1; i++) {
                 if(_weightGrid.U(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                    vmath::vec3 vel = _getVelocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setU(i, j, k, vel.x);
+                    _MACVelocity.setU(i, j, k, 0.0);
                 }
             }
         }
     }
 
-    //constrain v
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
                 if(_weightGrid.V(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                    vmath::vec3 vel = _getVelocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setV(i, j, k, vel.y);
+                    _MACVelocity.setV(i, j, k, 0.0);
                 }
             }
         }
     }
 
-    //constrain w
     for(int k = 0; k < _ksize + 1; k++) {
         for(int j = 0; j < _jsize; j++) { 
             for(int i = 0; i < _isize; i++) {
                 if(_weightGrid.W(i, j, k) == 0) {
-                    //apply constraint
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                    vmath::vec3 vel = _getVelocity(pos);
-                    vmath::vec3 normal = _solidSDF.trilinearInterpolateGradient(pos);
-                    normal = vmath::normalize(normal);
-                    float perp_component = vmath::dot(vel, normal);
-                    vel -= perp_component*normal;
-                    _tempMACVelocity.setW(i, j, k, vel.z);
+                    _MACVelocity.setW(i, j, k, 0.0);
                 }
             }
         }
     }
-
-    _MACVelocity.set(_tempMACVelocity);
-
 }
 
