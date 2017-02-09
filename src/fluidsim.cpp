@@ -297,27 +297,33 @@ void FluidSim::_advectParticles(float dt) {
     boundary.expand(-2 * _dx - 1e-4);
 
     for(unsigned int p = 0; p < particles.size(); p++) {
-        particles[p] = _traceRK2(particles[p], dt);
+        particles[p].position = _traceRK2(particles[p].position, dt);
     
         //check boundaries and project exterior particles back in
-        float phi_val = _solidSDF.trilinearInterpolate(particles[p]);; 
+        float phi_val = _solidSDF.trilinearInterpolate(particles[p].position); 
         if(phi_val < 0) {
-            vmath::vec3 grad = _solidSDF.trilinearInterpolateGradient(particles[p]);
+            vmath::vec3 grad = _solidSDF.trilinearInterpolateGradient(particles[p].position);
             if(vmath::lengthsq(grad) > 0) {
                 grad = vmath::normalize(grad);
             }
-            particles[p] -= phi_val * grad;
+            particles[p].position -= phi_val * grad;
         }
 
-        if (!boundary.isPointInside(particles[p])) {
-            particles[p] = boundary.getNearestPointInsideAABB(particles[p]);
+        if (!boundary.isPointInside(particles[p].position)) {
+            particles[p].position = boundary.getNearestPointInsideAABB(particles[p].position);
         }
     }
     
 }
 
 void FluidSim::_updateLiquidSDF() {
-    _liquidSDF.calculateSignedDistanceField(particles, _particleRadius, _solidSDF);
+    std::vector<vmath::vec3> points;
+    points.reserve(particles.size());
+    for (size_t i = 0; i < particles.size(); i++) {
+        points.push_back(particles[i].position);
+    }
+
+    _liquidSDF.calculateSignedDistanceField(points, _particleRadius, _solidSDF);
 }
 
 //Basic first order semi-Lagrangian advection of velocities

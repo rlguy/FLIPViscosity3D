@@ -15,6 +15,17 @@
 
 #include <vector>
 
+struct FluidParticle {
+    vmath::vec3 position;
+    vmath::vec3 velocity;
+
+    FluidParticle() {}
+    FluidParticle(vmath::vec3 p) : position(p) {}
+    FluidParticle(vmath::vec3 p, vmath::vec3 v) : 
+                                  position(p),
+                                  velocity(v) {}
+};
+
 class FluidSim {
 
 public:
@@ -26,7 +37,7 @@ public:
     void setViscosity(Array3d<float> &vgrid);
     void advance(float dt);
 
-    std::vector<vmath::vec3> particles;
+    std::vector<FluidParticle> particles;
 
 private:
     TriangleMesh _getTriangleMeshFromAABB(AABB bbox);

@@ -8,11 +8,11 @@
 #include "fluidsim.h"
 #include "trianglemesh.h"
 
-void export_particles(int frame, std::vector<vmath::vec3> &particles) {
+void export_particles(int frame, std::vector<FluidParticle> &particles) {
     TriangleMesh mesh;
     double scale = 10.0;
     for(unsigned int i = 0; i < particles.size(); i++) {
-        mesh.vertices.push_back(scale * particles[i]);
+        mesh.vertices.push_back(scale * particles[i].position);
     }
 
     std::ostringstream ss;
