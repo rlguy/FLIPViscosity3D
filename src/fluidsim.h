@@ -10,7 +10,6 @@
 #include "pressuresolver.h"
 #include "meshlevelset.h"
 #include "fluidsimassert.h"
-#include "stopwatch.h"
 #include "viscositysolver.h"
 
 #include <vector>
