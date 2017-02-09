@@ -47,13 +47,20 @@ private:
 
     float _cfl();
     vmath::vec3 _getVelocity(vmath::vec3 position);
-
-    void _advectParticles(float dt);
     void _updateLiquidSDF();
+
     void _advectVelocityField(float dt);
+    void _advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid);
+    void _advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid);
+    void _advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid);
+    void _computeVelocityScalarField(Array3d<float> &field, 
+                                     Array3d<bool> &isValueSet, 
+                                     int dir);
+
     void _addBodyForce(float dt);
     void _project(float dt);
-    void _extrapolateVelocityField();
+    void _extrapolateVelocityField(MACVelocityField &vfield, 
+                                   ValidVelocityComponentGrid &valid);
     void _constrainVelocityField();
 
     // viscosity
@@ -63,6 +70,9 @@ private:
     void _computeWeights();
     Array3d<float> _solvePressure(float dt);
     void _applyPressure(float dt, Array3d<float> &pressureGrid);
+
+    void _advectFluidParticles(float dt);
+    void _updateFluidParticleVelocities();
 
     inline double _randomDouble(double min, double max) {
         return min + (double)rand() / ((double)RAND_MAX / (max - min));
@@ -81,10 +91,8 @@ private:
     
     //Fluid velocity
     MACVelocityField _MACVelocity;
-    MACVelocityField _tempMACVelocity;
-    
+    MACVelocityField _savedVelocityField;
     ValidVelocityComponentGrid _validVelocities;
-    int _numExtrapolationLayers = 10;
 
     MeshLevelSet _solidSDF;
     double _meshLevelSetExactBand = 3;
@@ -94,7 +102,9 @@ private:
 
     WeightGrid _weightGrid;
 
+    double _CFLConditionNumber = 5.0;
     double _minfrac = 0.01f;
+    double _ratioPICtoFLIP = 0.05f;
 
     Array3d<float> _viscosity;
 };

@@ -7,7 +7,6 @@ void FluidSim::initialize(int i, int j, int k, float dx) {
     _dx = dx;
 
     _MACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
-    _tempMACVelocity = MACVelocityField(_isize, _jsize, _ksize, _dx);
     _validVelocities = ValidVelocityComponentGrid(_isize, _jsize, _ksize);
 
     //make the particles large enough so they always appear on the grid
@@ -110,33 +109,24 @@ void FluidSim::advance(float dt) {
             substep = dt - t;
         }
         printf("Taking substep of size %f (to %0.3f%% of the frame)\n", substep, 100 * (t+substep)/dt);
-        
-        printf(" Surface (particle) advection\n");
-        _advectParticles(substep);
 
         printf(" Compute liquid signed distance field\n");
         _updateLiquidSDF();
 
         printf(" Velocity advection\n");
-        //Advance the velocity
         _advectVelocityField(substep);
+
         _addBodyForce(substep);
 
         _applyViscosity(substep);
 
         printf(" Pressure projection\n");
         _project(substep); 
-         
-        //_pressure projection only produces valid velocities in faces with non-zero associated face area.
-        //Because the advection step may interpolate from these invalid faces, 
-        //we must extrapolate velocities from the fluid domain into these invalid faces.
-        printf(" Extrapolation\n");
-        _extrapolateVelocityField();
      
-        //For extrapolated velocities, replace the normal component with
-        //that of the object.
-        printf(" Constrain boundary velocities\n");
         _constrainVelocityField();
+
+        printf(" Surface (particle) advection\n");
+        _advectFluidParticles(substep);
 
         t += substep;
     }
@@ -264,7 +254,7 @@ float FluidSim::_cfl() {
         }
     }
     
-    return 5*_dx / maxvel;
+    return (_CFLConditionNumber * _dx) / maxvel;
 }
 
 void FluidSim::_addBodyForce(float dt) {
@@ -291,7 +281,9 @@ void FluidSim::_addBodyForce(float dt) {
 }
 
 
-void FluidSim::_advectParticles(float dt) {
+void FluidSim::_advectFluidParticles(float dt) {
+
+    _updateFluidParticleVelocities();
 
     AABB boundary(0.0, 0.0, 0.0, _isize * _dx, _jsize *_dx, _ksize * _dx);
     boundary.expand(-2 * _dx - 1e-4);
@@ -313,7 +305,19 @@ void FluidSim::_advectParticles(float dt) {
             particles[p].position = boundary.getNearestPointInsideAABB(particles[p].position);
         }
     }
-    
+}
+
+void FluidSim::_updateFluidParticleVelocities() {
+
+    for (size_t i = 0; i < particles.size(); i++) {
+        vmath::vec3 p = particles[i].position;
+        vmath::vec3 vnew = _MACVelocity.evaluateVelocityAtPositionLinear(p);
+        vmath::vec3 vold = _savedVelocityField.evaluateVelocityAtPositionLinear(p);
+
+        vmath::vec3 vPIC = vnew;
+        vmath::vec3 vFLIP = particles[i].velocity + vnew - vold;
+        particles[i].velocity = _ratioPICtoFLIP * vPIC + (1.0f - _ratioPICtoFLIP) * vFLIP;
+    }
 }
 
 void FluidSim::_updateLiquidSDF() {
@@ -326,71 +330,161 @@ void FluidSim::_updateLiquidSDF() {
     _liquidSDF.calculateSignedDistanceField(points, _particleRadius, _solidSDF);
 }
 
-//Basic first order semi-Lagrangian advection of velocities
-void FluidSim::_advectVelocityField(float dt) {
+void FluidSim::_computeVelocityScalarField(Array3d<float> &field, 
+                                           Array3d<bool> &isValueSet,
+                                           int dir) {
+    int U = 0; int V = 1; int W = 2;
 
-    FluidMaterialGrid mgrid(_isize, _jsize, _ksize);
-    GridIndex nbs[6];
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize; i++) {
-                if (_liquidSDF(i, j, k) < 0.0) {
-                    Grid3d::getNeighbourGridIndices6(i, j, k, nbs);
-                    mgrid.setFluid(i, j, k);
+    vmath::vec3 offset;
+    if (dir == U) {
+        offset = vmath::vec3(0.0, 0.5*_dx, 0.5*_dx);
+    } else if (dir == V) {
+        offset = vmath::vec3(0.5*_dx, 0.0, 0.5*_dx);
+    } else if (dir == W) {
+        offset = vmath::vec3(0.5*_dx, 0.5*_dx, 0.0);
+    } else {
+        return;
+    }
 
-                    for (int idx = 0; idx < 6; idx++) {
-                        if (Grid3d::isGridIndexInRange(nbs[idx], _isize, _jsize, _ksize)) {
-                            mgrid.setFluid(nbs[idx]);
-                        }
+    Array3d<float> weights(field.width, field.height, field.depth, 0.0);
+
+    // coefficients for Wyvill kernel
+    float r = _dx;
+    float rsq = r*r;
+    float coef1 = (4.0f / 9.0f) * (1.0f / (r*r*r*r*r*r));
+    float coef2 = (17.0f / 9.0f) * (1.0f / (r*r*r*r));
+    float coef3 = (22.0f / 9.0f) * (1.0f / (r*r));
+
+    // transfer particle velocity component to grid
+    for (size_t pidx = 0; pidx < particles.size(); pidx++) {
+        vmath::vec3 p = particles[pidx].position - offset;
+        double velocityComponent = particles[pidx].velocity[dir];
+
+        GridIndex g = Grid3d::positionToGridIndex(p, _dx);
+        GridIndex gmin(fmax(g.i - 1, 0), 
+                       fmax(g.j - 1, 0), 
+                       fmax(g.k - 1, 0));
+        GridIndex gmax(fmin(g.i + 1, field.width - 1), 
+                       fmin(g.j + 1, field.height - 1), 
+                       fmin(g.k + 1, field.depth - 1));
+
+        for (int k = gmin.k; k <= gmax.k; k++) {
+            for (int j = gmin.j; j <= gmax.j; j++) {
+                for (int i = gmin.i; i <= gmax.i; i++) {
+
+                    vmath::vec3 gpos = Grid3d::GridIndexToPosition(i, j, k, _dx);
+                    vmath::vec3 v = gpos - p;
+                    double distsq = vmath::dot(v, v);
+                    if (distsq < rsq) {
+                        float weight = 1.0f - coef1 * distsq * distsq * distsq + 
+                                              coef2 * distsq * distsq - 
+                                              coef3 * distsq;
+                        field.add(i, j, k, weight * velocityComponent);
+                        weights.add(i, j, k, weight);
                     }
                 }
             }
         }
     }
 
-    _tempMACVelocity.clear();
+    // Divide field values by weights
+    double eps = 1e-9;
+    for (int k = 0; k < field.depth; k++) {
+        for (int j = 0; j < field.height; j++) {
+            for (int i = 0; i < field.width; i++) {
+                float value = field(i, j, k);
+                float weight = weights(i, j, k);
 
-    //semi-Lagrangian advection on u-component of velocity
+                if (weight < eps) {
+                    continue;
+                }
+                field.set(i, j, k, value / weight);
+                isValueSet.set(i, j, k, true);
+            }
+        }
+    }
+}
+
+void FluidSim::_advectVelocityFieldU(FluidMaterialGrid &fluidCellGrid) {
+    Array3d<float> ugrid = Array3d<float>(_isize + 1, _jsize, _ksize, 0.0f);
+    Array3d<bool> isValueSet = Array3d<bool>(_isize + 1, _jsize, _ksize, false);
+    _computeVelocityScalarField(ugrid, isValueSet, 0);
+
+    _MACVelocity.clearU();
+    for (int k = 0; k < ugrid.depth; k++) {
+        for (int j = 0; j < ugrid.height; j++) {
+            for (int i = 0; i < ugrid.width; i++) {
+                if (fluidCellGrid.isFaceBorderingFluidU(i, j, k)) {
+                    if (isValueSet(i, j, k)) {
+                        _MACVelocity.setU(i, j, k, ugrid(i, j, k));
+                        _validVelocities.validU.set(i, j, k, true);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void FluidSim::_advectVelocityFieldV(FluidMaterialGrid &fluidCellGrid) {
+    Array3d<float> vgrid = Array3d<float>(_isize, _jsize + 1, _ksize, 0.0f);
+    Array3d<bool> isValueSet = Array3d<bool>(_isize, _jsize + 1, _ksize, false);
+    _computeVelocityScalarField(vgrid, isValueSet, 1);
+    
+    _MACVelocity.clearV();
+    for (int k = 0; k < vgrid.depth; k++) {
+        for (int j = 0; j < vgrid.height; j++) {
+            for (int i = 0; i < vgrid.width; i++) {
+                if (fluidCellGrid.isFaceBorderingFluidV(i, j, k)) {
+                    if (isValueSet(i, j, k)) {
+                        _MACVelocity.setV(i, j, k, vgrid(i, j, k));
+                        _validVelocities.validV.set(i, j, k, true);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void FluidSim::_advectVelocityFieldW(FluidMaterialGrid &fluidCellGrid) {
+    Array3d<float> wgrid = Array3d<float>(_isize, _jsize, _ksize + 1, 0.0f);
+    Array3d<bool> isValueSet = Array3d<bool>(_isize, _jsize, _ksize + 1, 0.0f);
+    _computeVelocityScalarField(wgrid, isValueSet, 2);
+    
+    _MACVelocity.clearW();
+    for (int k = 0; k < wgrid.depth; k++) {
+        for (int j = 0; j < wgrid.height; j++) {
+            for (int i = 0; i < wgrid.width; i++) {
+                if (fluidCellGrid.isFaceBorderingFluidW(i, j, k)) {
+                    if (isValueSet(i, j, k)) {
+                        _MACVelocity.setW(i, j, k, wgrid(i, j, k));
+                        _validVelocities.validW.set(i, j, k, true);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void FluidSim::_advectVelocityField(float dt) {
+
+    FluidMaterialGrid fluidCellGrid(_isize, _jsize, _ksize);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
-            for(int i = 0; i < _isize + 1; i++) {
-                if (mgrid.isFaceBorderingFluidU(i, j, k)) {
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionU(i, j, k, _dx);
-                    pos = _traceRK2(pos, -dt);
-                    _tempMACVelocity.setU(i, j, k, _getVelocity(pos).x); 
-                } 
-            }
-        }
-    }
-
-    //semi-Lagrangian advection on v-component of velocity
-    for(int k = 0; k < _ksize; k++) {
-        for(int j = 0; j < _jsize + 1; j++) {
             for(int i = 0; i < _isize; i++) {
-                if (mgrid.isFaceBorderingFluidV(i, j, k)) {
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionV(i, j, k, _dx);
-                    pos = _traceRK2(pos, -dt);
-                    _tempMACVelocity.setV(i, j, k, _getVelocity(pos).y);
+                if (_liquidSDF(i, j, k) < 0.0) {
+                    fluidCellGrid.setFluid(i, j, k);
                 }
             }
         }
     }
 
-    //semi-Lagrangian advection on w-component of velocity
-    for(int k = 0; k < _ksize + 1; k++) {
-        for(int j = 0; j < _jsize; j++) { 
-            for(int i = 0; i < _isize; i++) {
-                if (mgrid.isFaceBorderingFluidW(i, j, k)) {
-                    vmath::vec3 pos = Grid3d::FaceIndexToPositionW(i, j, k, _dx);
-                    pos = _traceRK2(pos, -dt);
-                    _tempMACVelocity.setW(i, j, k, _getVelocity(pos).z);
-                }
-            }
-        }
-    }
+    _validVelocities.reset();
+    _advectVelocityFieldU(fluidCellGrid);
+    _advectVelocityFieldV(fluidCellGrid);
+    _advectVelocityFieldW(fluidCellGrid);
 
-    //move update velocities into u/v vectors
-    _MACVelocity.set(_tempMACVelocity);
+    _extrapolateVelocityField(_MACVelocity, _validVelocities);
+    _savedVelocityField = _MACVelocity;
 }
 
 
@@ -401,6 +495,8 @@ void FluidSim::_project(float dt) {
     //Set up and solve the variational _pressure solve.
     Array3d<float> pressureGrid = _solvePressure(dt);
     _applyPressure(dt, pressureGrid);
+
+    _extrapolateVelocityField(_MACVelocity, _validVelocities);
 }
 
 
@@ -572,8 +668,10 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
     }
 }
 
-void FluidSim::_extrapolateVelocityField() {
-    _MACVelocity.extrapolateVelocityField(_validVelocities, _numExtrapolationLayers);
+void FluidSim::_extrapolateVelocityField(MACVelocityField &vfield, 
+                                         ValidVelocityComponentGrid &valid) {
+    int numLayers = ceil(_CFLConditionNumber) + 2;
+    vfield.extrapolateVelocityField(valid, numLayers);
 }
 
 void FluidSim::_constrainVelocityField() {

@@ -48,7 +48,7 @@ int main() {
     FLUIDSIM_ASSERT(success);
     sim.addLiquid(liquidMesh);
 
-    sim.setViscosity(1.0);
+    sim.setViscosity(0.05);
 
     int num_frames = 300;
     float timestep = 0.01f;
