@@ -606,55 +606,109 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtPositionLinear(double x, double 
 
 void MACVelocityField::_extrapolateGrid(Array3d<float> &grid, Array3d<bool> &valid, int numLayers) {
 
-    Array3d<float> tempGrid = grid;
-    Array3d<bool> oldValid;
-    for(int layers = 0; layers < numLayers; layers++) {
+    char UNKNOWN = 0x00;
+    char WAITING = 0x01;
+    char KNOWN = 0x02;
+    char DONE = 0x03;
 
-        oldValid = valid;
-        for(int k = 1; k < grid.depth - 1; k++) {
-            for(int j = 1; j < grid.height - 1; j++) {
-                for(int i = 1; i < grid.width - 1; i++) {
-
-                    if(oldValid(i,j,k)) {
-                        continue;
-                    }
-
-                    float sum = 0;
-                    int count = 0;
-                    if(oldValid(i + 1, j, k)) {
-                        sum += grid(i + 1, j, k);
-                        count++;
-                    }
-                    if(oldValid(i - 1, j, k)) {
-                        sum += grid(i - 1, j, k);
-                        count++;
-                    }
-                    if(oldValid(i, j + 1, k)) {
-                        sum += grid(i, j + 1, k);
-                        count++;
-                    }
-                    if(oldValid(i, j - 1, k)) {
-                        sum += grid(i, j - 1, k);
-                        count++;
-                    }
-                    if(oldValid(i, j, k + 1)) {
-                        sum += grid(i, j, k + 1);
-                        count++;
-                    }
-                    if(oldValid(i, j, k - 1)) {
-                        sum += grid(i, j, k - 1);
-                        count++;
-                    }
-                    
-                    if(count > 0) {
-                        tempGrid.set(i, j, k, sum /(float)count);
-                        valid.set(i, j, k, true);
-                    }
-
+    Array3d<char> status(grid.width, grid.height, grid.depth);
+    for(int k = 0; k < grid.depth; k++) {
+        for(int j = 0; j < grid.height; j++) {
+            for(int i = 0; i < grid.width; i++) {
+                status.set(i, j, k, valid(i, j, k) ? KNOWN : UNKNOWN);
+                if (status(i, j, k) == UNKNOWN && 
+                        Grid3d::isGridIndexOnBorder(i, j, k, grid.width, grid.height, grid.depth)) {
+                    status.set(i, j, k, DONE);
                 }
             }
         }
-        grid = tempGrid;
+    }
+
+    std::vector<GridIndex> extrapolationCells;
+    for (int layers = 0; layers < numLayers; layers++) {
+
+        extrapolationCells.clear();
+        for(int k = 1; k < grid.depth - 1; k++) {
+            for(int j = 1; j < grid.height - 1; j++) {
+                for(int i = 1; i < grid.width - 1; i++) {
+                    if (status(i, j, k) != KNOWN) { 
+                        continue; 
+                    }
+
+                    int count = 0;
+                    if (status(i - 1, j, k) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i - 1, j, k));
+                        status.set(i - 1, j, k, WAITING);
+                        count++;
+                    } else if (status(i - 1, j, k) == WAITING) {
+                        count++;
+                    }
+
+                    if (status(i + 1, j, k) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i + 1, j, k));
+                        status.set(i + 1, j, k, WAITING);
+                        count++;
+                    } else if (status(i + 1, j, k) == WAITING) {
+                        count++;
+                    }
+
+                    if (status(i, j - 1, k) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i, j - 1, k));
+                        status.set(i, j - 1, k, WAITING);
+                        count++;
+                    } else if (status(i, j - 1, k) == WAITING) {
+                        count++;
+                    }
+
+                    if (status(i, j + 1, k) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i, j + 1, k));
+                        status.set(i, j + 1, k, WAITING);
+                        count++;
+                    } else if (status(i, j + 1, k) == WAITING) {
+                        count++;
+                    }
+
+                    if (status(i, j, k - 1) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i, j, k - 1));
+                        status.set(i, j, k - 1, WAITING);
+                        count++;
+                    } else if (status(i, j, k - 1) == WAITING) {
+                        count++;
+                    }
+
+                    if (status(i, j, k + 1) == UNKNOWN) {
+                        extrapolationCells.push_back(GridIndex(i, j, k + 1));
+                        status.set(i, j, k + 1, WAITING);
+                        count++;
+                    } else if (status(i, j, k + 1) == WAITING) {
+                        count++;
+                    }
+
+                    if (count == 0) {
+                        status.set(i, j, k, DONE);
+                    }
+                }
+            }
+        }
+
+        GridIndex g;
+        for (size_t i = 0; i < extrapolationCells.size(); i++) {
+            g = extrapolationCells[i];
+
+            float sum = 0;
+            int count = 0;
+            if(status(g.i - 1, g.j, g.k) == KNOWN) { sum += grid(g.i - 1, g.j, g.k); count++; }
+            if(status(g.i + 1, g.j, g.k) == KNOWN) { sum += grid(g.i + 1, g.j, g.k); count++; }
+            if(status(g.i, g.j - 1, g.k) == KNOWN) { sum += grid(g.i, g.j - 1, g.k); count++; }
+            if(status(g.i, g.j + 1, g.k) == KNOWN) { sum += grid(g.i, g.j + 1, g.k); count++; }
+            if(status(g.i, g.j, g.k - 1) == KNOWN) { sum += grid(g.i, g.j, g.k - 1); count++; }
+            if(status(g.i, g.j, g.k + 1) == KNOWN) { sum += grid(g.i, g.j, g.k + 1); count++; }
+
+            FLUIDSIM_ASSERT(count != 0)
+            grid.set(g, sum /(float)count);
+        }
+        status.set(extrapolationCells, KNOWN);
+
     }
 
 }
