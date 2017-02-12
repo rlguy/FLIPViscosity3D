@@ -423,7 +423,7 @@ bool TriangleMesh::_loadPLYVertexData(std::ifstream *file, std::string &header) 
             offset += 3*sizeof(char);
 
             vertices.push_back(p);
-            vertexcolors.push_back(vmath::vec3(r / 255.0, g / 255.0, b / 255.0));
+            vertexcolors.push_back(vmath::vec3(r / 255.0f, g / 255.0f, b / 255.0f));
         }
     } else {
         vertices.assign((vmath::vec3*)vertexData, (vmath::vec3*)vertexData + numVertices);

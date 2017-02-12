@@ -255,36 +255,6 @@ void MACVelocityField::addW(int i, int j, int k, double val) {
     _w.add(i, j, k, (float)val);
 }
 
-vmath::vec3 MACVelocityField::velocityIndexToPositionU(int i, int j, int k) {
-    FLUIDSIM_ASSERT(isIndexInRangeU(i, j, k));
-
-    double gx = (double)(i-1)*_dx;
-    double gy = (double)j*_dx;
-    double gz = (double)k*_dx;
-
-    return vmath::vec3(gx + _dx, gy + 0.5*_dx, gz + 0.5*_dx);
-}
-
-vmath::vec3 MACVelocityField::velocityIndexToPositionV(int i, int j, int k) {
-    FLUIDSIM_ASSERT(isIndexInRangeV(i, j, k));
-
-    double gx = (double)i*_dx;
-    double gy = (double)(j-1)*_dx;
-    double gz = (double)k*_dx;
-
-    return vmath::vec3(gx + 0.5*_dx, gy + _dx, gz + 0.5*_dx);
-}
-
-vmath::vec3 MACVelocityField::velocityIndexToPositionW(int i, int j, int k) {
-    FLUIDSIM_ASSERT(isIndexInRangeW(i, j, k));
-
-    double gx = (float)i*_dx;
-    double gy = (float)j*_dx;
-    double gz = (float)(k-1)*_dx;
-
-    return vmath::vec3(gx + 0.5f*_dx, gy + 0.5f*_dx, gz + _dx);
-}
-
 vmath::vec3 MACVelocityField::evaluateVelocityAtCellCenter(int i, int j, int k) {
     FLUIDSIM_ASSERT(Grid3d::isGridIndexInRange(i, j, k, _isize, _jsize, _ksize));
 
@@ -292,7 +262,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtCellCenter(int i, int j, int k) 
     double yavg = 0.5 * (V(i, j + 1, k) + V(i, j, k));
     double zavg = 0.5 * (W(i, j, k + 1) + W(i, j, k));
 
-    return vmath::vec3(xavg, yavg, zavg);
+    return vmath::vec3((float)xavg, (float)yavg, (float)zavg);
 }
 
 float MACVelocityField::evaluateVelocityMagnitudeSquaredAtCellCenter(int i, int j, int k) {
@@ -350,7 +320,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtFaceCenterU(int i, int j, int k)
     double vy = 0.25 * (V(i, j, k) + V(i, j+1, k) + V(i+1, j, k) + V(i+1, j+1, k));
     double vz = 0.25 * (W(i, j, k) + W(i, j, k+1) + W(i+1, j, k) + W(i+1, j, k+1));
 
-    return vmath::vec3(vx, vy, vz);
+    return vmath::vec3((float)vx, (float)vy, (float)vz);
 }
 
 vmath::vec3 MACVelocityField::evaluateVelocityAtFaceCenterV(int i, int j, int k) {
@@ -362,7 +332,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtFaceCenterV(int i, int j, int k)
     double vy = V(i, j + 1, k);
     double vz = 0.25 * (W(i, j, k) + W(i, j, k+1) + W(i, j+1, k) + W(i, j+1, k+1));
 
-    return vmath::vec3(vx, vy, vz);
+    return vmath::vec3((float)vx, (float)vy, (float)vz);
 }
 
 vmath::vec3 MACVelocityField::evaluateVelocityAtFaceCenterW(int i, int j, int k) {
@@ -374,7 +344,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtFaceCenterW(int i, int j, int k)
     double vy = 0.25 * (V(i, j, k) + V(i, j+1, k) + V(i, j, k+1) + V(i, j+1, k+1));
     double vz = W(i, j, k + 1);
 
-    return vmath::vec3(vx, vy, vz);
+    return vmath::vec3((float)vx, (float)vy, (float)vz);
 }
 
 double MACVelocityField::_interpolateU(double x, double y, double z) {
@@ -585,7 +555,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtPosition(double x, double y, dou
     double yvel = _interpolateV(x, y, z);
     double zvel = _interpolateW(x, y, z);
 
-    return vmath::vec3(xvel, yvel, zvel);
+    return vmath::vec3((float)xvel, (float)yvel, (float)zvel);
 }
 
 vmath::vec3 MACVelocityField::evaluateVelocityAtPositionLinear(vmath::vec3 pos) {
@@ -601,7 +571,7 @@ vmath::vec3 MACVelocityField::evaluateVelocityAtPositionLinear(double x, double 
     double yvel = _interpolateLinearV(x, y, z);
     double zvel = _interpolateLinearW(x, y, z);
 
-    return vmath::vec3(xvel, yvel, zvel);
+    return vmath::vec3((float)xvel, (float)yvel, (float)zvel);
 }
 
 void MACVelocityField::_extrapolateGrid(Array3d<float> &grid, Array3d<bool> &valid, int numLayers) {

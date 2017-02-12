@@ -83,11 +83,13 @@ void ParticleLevelSet::calculateSignedDistanceField(std::vector<vmath::vec3> &pa
 }
 
 float ParticleLevelSet::trilinearInterpolate(vmath::vec3 pos) {
-    return Interpolation::trilinearInterpolate(pos - vmath::vec3(0.5*_dx, 0.5*_dx, 0.5*_dx), _dx, _phi);
+    float hdx = (float)(0.5*_dx);
+    vmath::vec3 offset = vmath::vec3(hdx, hdx, hdx);
+    return (float)Interpolation::trilinearInterpolate(pos - offset, _dx, _phi);
 }
 
 float ParticleLevelSet::_getMaxDistance() {
-    return 3.0 * _dx;
+    return 3.0f * (float)_dx;
 }
 
 void ParticleLevelSet::_computeSignedDistanceFromParticles(std::vector<vmath::vec3> &particles, 
@@ -99,16 +101,16 @@ void ParticleLevelSet::_computeSignedDistanceFromParticles(std::vector<vmath::ve
     for(size_t pidx = 0; pidx < particles.size(); pidx++) {
         p = particles[pidx];
         g = Grid3d::positionToGridIndex(particles[pidx], _dx);
-        gmin = GridIndex(fmax(0, g.i - 1), fmax(0, g.j - 1), fmax(0, g.k - 1));
-        gmax = GridIndex(fmin(g.i + 1, _isize - 1), 
-                         fmin(g.j + 1, _jsize - 1), 
-                         fmin(g.k + 1, _ksize - 1));
+        gmin = GridIndex((int)fmax(0, g.i - 1), (int)fmax(0, g.j - 1), (int)fmax(0, g.k - 1));
+        gmax = GridIndex((int)fmin(g.i + 1, _isize - 1), 
+                         (int)fmin(g.j + 1, _jsize - 1), 
+                         (int)fmin(g.k + 1, _ksize - 1));
 
         for(int k = gmin.k; k <= gmax.k; k++) {
             for(int j = gmin.j; j <= gmax.j; j++) {
                 for(int i = gmin.i; i <= gmax.i; i++) {
                     vmath::vec3 cpos = Grid3d::GridIndexToCellCenter(i, j, k, _dx);
-                    float dist = vmath::length(cpos - p) - radius;
+                    float dist = vmath::length(cpos - p) - (float)radius;
                     if(dist < _phi(i, j, k)) {
                         _phi.set(i, j, k, dist);
                     }
@@ -125,7 +127,7 @@ void ParticleLevelSet::_extrapolateSignedDistanceIntoSolids(MeshLevelSet &solidP
             for(int i = 0; i < _isize; i++) {
                 if(_phi(i, j, k) < 0.5 * _dx) {
                     if(solidPhi.getDistanceAtCellCenter(i, j, k) < 0) {
-                        _phi.set(i, j, k, -0.5f * _dx);
+                        _phi.set(i, j, k, -0.5f * (float)_dx);
                     }
                 }
             }

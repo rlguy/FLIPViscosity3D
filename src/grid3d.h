@@ -76,11 +76,11 @@ namespace Grid3d {
     }
 
     inline vmath::vec3 GridIndexToPosition(int i, int j, int k, double dx) {
-        return vmath::vec3((float)i*dx, (float)j*dx, (float)k*dx);
+        return vmath::vec3((float)(i*dx), (float)(j*dx), (float)(k*dx));
     }
 
     inline vmath::vec3 GridIndexToPosition(GridIndex g, double dx) {
-        return vmath::vec3((float)g.i*dx, (float)g.j*dx, (float)g.k*dx);
+        return vmath::vec3((float)(g.i*dx), (float)(g.j*dx), (float)(g.k*dx));
     }
 
     inline void GridIndexToCellCenter(int i, int j, int k, double dx, 
@@ -101,36 +101,36 @@ namespace Grid3d {
 
     inline vmath::vec3 GridIndexToCellCenter(int i, int j, int k, double dx) {
         double hw = 0.5*dx;
-        return vmath::vec3((float)i*dx + hw, (float)j*dx + hw, (float)k*dx + hw);
+        return vmath::vec3((float)(i*dx + hw), (float)(j*dx + hw), (float)(k*dx + hw));
     }
 
     inline vmath::vec3 GridIndexToCellCenter(GridIndex g, double dx) {
                                              double hw = 0.5*dx;
-        return vmath::vec3((float)g.i*dx + hw, (float)g.j*dx + hw, (float)g.k*dx + hw);
+        return vmath::vec3((float)(g.i*dx + hw), (float)(g.j*dx + hw), (float)(g.k*dx + hw));
     }
 
     inline vmath::vec3 FaceIndexToPositionU(int i, int j, int k, double dx) {
-        return vmath::vec3((float)i*dx, ((float)j + 0.5)*dx, ((float)k + 0.5)*dx);
+        return vmath::vec3((float)(i*dx), (float)(j + 0.5*dx), (float)(k + 0.5*dx));
     }
 
     inline vmath::vec3 FaceIndexToPositionU(GridIndex g, double dx) {
-        return vmath::vec3((float)g.i*dx, ((float)g.j + 0.5)*dx, ((float)g.k + 0.5)*dx);
+        return vmath::vec3((float)(g.i*dx), (float)(g.j + 0.5*dx), (float)(g.k + 0.5*dx));
     }
 
     inline vmath::vec3 FaceIndexToPositionV(int i, int j, int k, double dx) {
-        return vmath::vec3(((float)i + 0.5)*dx, (float)j*dx, ((float)k + 0.5)*dx);
+        return vmath::vec3((float)(i + 0.5*dx), (float)(j*dx), (float)(k + 0.5*dx));
     }
 
     inline vmath::vec3 FaceIndexToPositionV(GridIndex g, double dx) {
-        return vmath::vec3(((float)g.i + 0.5)*dx, (float)g.j*dx, ((float)g.k + 0.5)*dx);
+        return vmath::vec3((float)(g.i + 0.5*dx), (float)(g.j*dx), (float)(g.k + 0.5*dx));
     }
 
     inline vmath::vec3 FaceIndexToPositionW(int i, int j, int k, double dx) {
-        return vmath::vec3(((float)i + 0.5)*dx, ((float)j + 0.5)*dx, (float)k*dx);
+        return vmath::vec3((float)(i + 0.5*dx), (float)(j + 0.5*dx), (float)(k*dx));
     }
 
     inline vmath::vec3 FaceIndexToPositionW(GridIndex g, double dx) {
-        return vmath::vec3(((float)g.i + 0.5)*dx, ((float)g.j + 0.5)*dx, (float)g.k*dx);
+        return vmath::vec3((float)(g.i + 0.5*dx), (float)(g.j + 0.5*dx), (float)(g.k*dx));
     }
 
     inline bool isPositionInGrid(double x, double y, double z, double dx, int i, int j, int k) {
@@ -395,16 +395,16 @@ namespace Grid3d {
                                    int imax, int jmax, int kmax, 
                                    GridIndex *g1, GridIndex *g2) {
 
-        double lenx = r*vmath::length(G[0]);
-        double leny = r*vmath::length(G[1]);
-        double lenz = r*vmath::length(G[2]);
+        float lenx = (float)r*vmath::length(G[0]);
+        float leny = (float)r*vmath::length(G[1]);
+        float lenz = (float)r*vmath::length(G[2]);
 
-        double minx = p.x - lenx;
-        double maxx = p.x + lenx;
-        double miny = p.y - leny;
-        double maxy = p.y + leny;
-        double minz = p.z - lenz;
-        double maxz = p.z + lenz;
+        float minx = p.x - lenx;
+        float maxx = p.x + lenx;
+        float miny = p.y - leny;
+        float maxy = p.y + leny;
+        float minz = p.z - lenz;
+        float maxz = p.z + lenz;
 
         *g1 = positionToGridIndex(vmath::vec3(minx, miny, minz), dx);
         *g2 = positionToGridIndex(vmath::vec3(maxx, maxy, maxz), dx);
@@ -425,7 +425,7 @@ namespace Grid3d {
     inline void getGridIndexBounds(AABB bbox, double dx, 
                                    int imax, int jmax, int kmax,
                                     GridIndex *g1, GridIndex *g2) {
-        vmath::vec3 trans = vmath::vec3(bbox.width, bbox.height, bbox.depth);
+        vmath::vec3 trans = vmath::vec3((float)bbox.width, (float)bbox.height, (float)bbox.depth);
         *g1 = positionToGridIndex(bbox.position, dx);
         *g2 = positionToGridIndex(bbox.position + trans, dx);
 
@@ -439,7 +439,7 @@ namespace Grid3d {
 
     inline void getGridIndexBounds(AABB bbox, double dx, GridIndex gmax,
                                    GridIndex *g1, GridIndex *g2) {
-        vmath::vec3 trans = vmath::vec3(bbox.width, bbox.height, bbox.depth);
+        vmath::vec3 trans = vmath::vec3((float)bbox.width, (float)bbox.height, (float)bbox.depth);
         *g1 = positionToGridIndex(bbox.position, dx);
         *g2 = positionToGridIndex(bbox.position + trans, dx);
 
@@ -463,7 +463,7 @@ namespace Grid3d {
 
         vmath::vec3 eps = vmath::vec3(10e-9f, 10e-9f, 10e-9f);
         if (!isGridIndexInRange(gmax, imax, jmax, kmax)) {
-            pmax = GridIndexToPosition(gmax, dx) + vmath::vec3(dx, dx, dx) - eps;
+            pmax = GridIndexToPosition(gmax, dx) + vmath::vec3((float)dx, (float)dx, (float)dx) - eps;
         }
 
         return AABB(pmin, pmax);

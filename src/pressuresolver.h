@@ -220,7 +220,7 @@ private:
 
     double _pressureSolveTolerance = 1e-9;
     int _maxCGIterations = 200;
-    double _minfrac = 0.01f;
+    float _minfrac = 0.01f;
 
     std::vector<GridIndex> _pressureCells;
 

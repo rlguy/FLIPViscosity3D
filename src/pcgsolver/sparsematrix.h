@@ -65,13 +65,13 @@ struct SparseMatrix {
         if (i == -1 || j == -1) {
             return;
         }
-        FLUIDSIM_ASSERT(i >= 0 && i < n && j >= 0 && j < n);
+        FLUIDSIM_ASSERT(i >= 0 && i < (int)n && j >= 0 && j < (int)n);
 
         for(size_t k = 0; k < index[i].size(); k++){
-            if (index[i][k] == j) {
+            if (index[i][k] == (unsigned int)j) {
                 value[i][k] = newValue;
                 return;
-            } else if (index[i][k] > j) {
+            } else if (index[i][k] > (unsigned int)j) {
                 index[i].insert(index[i].begin() + k, j);
                 value[i].insert(value[i].begin() + k, newValue);
                 return;
@@ -86,13 +86,13 @@ struct SparseMatrix {
         if (i == -1 || j == -1) {
             return;
         }
-        FLUIDSIM_ASSERT(i >= 0 && i < n && j >= 0 && j < n);
+        FLUIDSIM_ASSERT(i >= 0 && i < (int)n && j >= 0 && j < (int)n);
 
         for(size_t k = 0; k < index[i].size(); k++){
-            if (index[i][k] == j) {
+            if (index[i][k] == (unsigned int)j) {
                 value[i][k] += inc;
                 return;
-            } else if (index[i][k] > j){
+            } else if (index[i][k] > (unsigned int)j){
                 index[i].insert(index[i].begin() + k, j);
                 value[i].insert(value[i].begin() + k, inc);
                 return;

@@ -66,8 +66,8 @@ public:
     float operator()(GridIndex g);
     float get(int i, int j, int k);
     float get(GridIndex g);
-    float getClosestTriangleIndex(int i, int j, int k);
-    float getClosestTriangleIndex(GridIndex g);
+    int getClosestTriangleIndex(int i, int j, int k);
+    int getClosestTriangleIndex(GridIndex g);
     float getDistanceAtCellCenter(int i, int j, int k);
     float getDistanceAtCellCenter(GridIndex g);
     float trilinearInterpolate(vmath::vec3 pos);

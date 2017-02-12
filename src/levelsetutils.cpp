@@ -167,7 +167,7 @@ double areaFraction(double phi0, double phi1, double phi2) {
         return _sortedTriangleFraction(phi2, phi0, phi1);
     } else {
         return 0;
-    }             return 0;
+    }
 }
 
 float areaFraction(float phi00, float phi10, float phi01, float phi11) {

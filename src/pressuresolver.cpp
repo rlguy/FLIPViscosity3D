@@ -184,7 +184,7 @@ Array3d<float> PressureSolver::solve(PressureSolverParameters params) {
     Array3d<float> pressureGrid(_isize, _jsize, _ksize, 0.0);
     for (int i = 0; i < (int)_pressureCells.size(); i++) {
         GridIndex g = _pressureCells[i];
-        pressureGrid.set(g, pressure[i]);
+        pressureGrid.set(g, (float)pressure[i]);
     }
 
     return pressureGrid;
@@ -254,7 +254,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         int index = _GridToVectorIndex(i, j, k);
 
         //right neighbour
-        float term = _weightGrid->U(i + 1, j, k) * scale;
+        float term = _weightGrid->U(i + 1, j, k) * (float)scale;
         float phiRight = _liquidSDF->get(i + 1, j, k);
         if(phiRight < 0) {
             A[index].diag += term;
@@ -265,7 +265,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         }
 
         //left neighbour
-        term = _weightGrid->U(i, j, k) * scale;
+        term = _weightGrid->U(i, j, k) * (float)scale;
         float phiLeft = _liquidSDF->get(i - 1, j, k);
         if(phiLeft < 0) {
             A[index].diag += term;
@@ -275,7 +275,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         }
 
         //top neighbour
-        term = _weightGrid->V(i, j + 1, k) * scale;
+        term = _weightGrid->V(i, j + 1, k) * (float)scale;
         float phiTop = _liquidSDF->get(i, j + 1, k);
         if(phiTop < 0) {
             A[index].diag += term;
@@ -286,7 +286,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         }
 
         //bottom neighbour
-        term = _weightGrid->V(i, j, k) * scale;
+        term = _weightGrid->V(i, j, k) * (float)scale;
         float phiBot = _liquidSDF->get(i, j - 1, k);
         if(phiBot < 0) {
             A[index].diag += term;
@@ -296,7 +296,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         }
 
         //far neighbour
-        term = _weightGrid->W(i, j, k + 1) * scale;
+        term = _weightGrid->W(i, j, k + 1) * (float)scale;
         float phiFar = _liquidSDF->get(i, j, k + 1);
         if(phiFar < 0) {
             A[index].diag += term;
@@ -307,7 +307,7 @@ void PressureSolver::_calculateMatrixCoefficients(MatrixCoefficients &A) {
         }
 
         //near neighbour
-        term =_weightGrid->W(i, j, k) * scale;
+        term =_weightGrid->W(i, j, k) * (float)scale;
         float phiNear = _liquidSDF->get(i, j, k - 1);
         if(phiNear < 0) {
             A[index].diag += term;

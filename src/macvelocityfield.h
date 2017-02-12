@@ -126,10 +126,6 @@ public:
     vmath::vec3 evaluateVelocityAtPositionLinear(double x, double y, double z);
     vmath::vec3 evaluateVelocityAtPositionLinear(vmath::vec3 pos);
 
-    vmath::vec3 velocityIndexToPositionU(int i, int j, int k);
-    vmath::vec3 velocityIndexToPositionV(int i, int j, int k);
-    vmath::vec3 velocityIndexToPositionW(int i, int j, int k);
-
     void extrapolateVelocityField(ValidVelocityComponentGrid &validGrid, int numLayers);
 
 private:

@@ -144,7 +144,7 @@ void ViscositySolver::_computeVolumeGrid() {
         validCells = tempValid;
     }
 
-    float hdx = 0.5 * _dx;
+    float hdx = (float)(0.5 * _dx);
     _estimateVolumeFractions(_volumes.center, vmath::vec3(hdx, hdx, hdx), validCells); 
     _estimateVolumeFractions(_volumes.U,      vmath::vec3(0,   hdx, hdx), validCells); 
     _estimateVolumeFractions(_volumes.V,      vmath::vec3(hdx, 0,   hdx), validCells); 

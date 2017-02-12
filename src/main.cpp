@@ -10,7 +10,7 @@
 
 void export_particles(int frame, std::vector<FluidParticle> &particles) {
     TriangleMesh mesh;
-    double scale = 10.0;
+    float scale = 10.0;
     for(unsigned int i = 0; i < particles.size(); i++) {
         mesh.vertices.push_back(scale * particles[i].position);
     }
@@ -29,7 +29,7 @@ int main() {
     int isize = 32;
     int jsize = 32;
     int ksize = 32;
-    float dx = 1.0 / (float)isize;
+    float dx = 1.0f / (float)isize;
     FluidSim sim;
 
     printf("Initializing data\n");
@@ -48,8 +48,8 @@ int main() {
     FLUIDSIM_ASSERT(success);
     sim.addLiquid(liquidMesh);
 
-    sim.setViscosity(0.05);
-    sim.setGravity(0.0, -9.81, 0.0);
+    sim.setViscosity(0.05f);
+    sim.setGravity(0.0f, -9.81f, 0.0f);
 
     int num_frames = 300;
     float timestep = 0.01f;

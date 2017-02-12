@@ -51,12 +51,12 @@ float MeshLevelSet::get(GridIndex g) {
     return _phi(g);
 }
 
-float MeshLevelSet::getClosestTriangleIndex(int i, int j, int k) {
+int MeshLevelSet::getClosestTriangleIndex(int i, int j, int k) {
     FLUIDSIM_ASSERT(_closestTriangles.isIndexInRange(i, j, k));
     return _closestTriangles(i, j, k);
 }
 
-float MeshLevelSet::getClosestTriangleIndex(GridIndex g) {
+int MeshLevelSet::getClosestTriangleIndex(GridIndex g) {
     FLUIDSIM_ASSERT(_closestTriangles.isIndexInRange(g));
     return _closestTriangles(g);
 }
@@ -78,7 +78,7 @@ float MeshLevelSet::getDistanceAtCellCenter(GridIndex g) {
 }
 
 float MeshLevelSet::trilinearInterpolate(vmath::vec3 pos) {
-    return Interpolation::trilinearInterpolate(pos, _dx, _phi);
+    return (float)Interpolation::trilinearInterpolate(pos, _dx, _phi);
 }
 
 vmath::vec3 MeshLevelSet::trilinearInterpolateGradient(vmath::vec3 pos) {
@@ -196,7 +196,7 @@ void MeshLevelSet::_computeExactBandDistanceField(int bandwidth,
     int isize = _phi.width;
     int jsize = _phi.height;
     int ksize = _phi.depth;
-    _phi.fill((isize + jsize + ksize) * _dx);
+    _phi.fill((float)((isize + jsize + ksize) * _dx));
     _closestTriangles.fill(-1);
     intersectionCounts.fill(0);
 
@@ -318,7 +318,7 @@ void MeshLevelSet::_propagateDistanceField() {
                                                              _mesh.vertices[t.tri[1]], 
                                                              _mesh.vertices[t.tri[2]]);
                 if (dist < _phi(g)) {
-                    _phi.set(g, dist);
+                    _phi.set(g, (float)dist);
                     _closestTriangles.set(g, _closestTriangles(n));
                 }
             }

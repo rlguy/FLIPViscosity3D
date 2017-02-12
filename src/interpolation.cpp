@@ -158,19 +158,19 @@ void Interpolation::trilinearInterpolateGradient(
     float ddx10 = v110 - v010;
     float ddx01 = v101 - v001;
     float ddx11 = v111 - v011;
-    float dv_dx = bilinearInterpolate(ddx00, ddx10, ddx01, ddx11, iy, iz);
+    float dv_dx = (float)bilinearInterpolate(ddx00, ddx10, ddx01, ddx11, iy, iz);
 
     float ddy00 = v010 - v000;
     float ddy10 = v110 - v100;
     float ddy01 = v011 - v001;
     float ddy11 = v111 - v101;
-    float dv_dy = bilinearInterpolate(ddy00, ddy10, ddy01, ddy11, ix, iz);
+    float dv_dy = (float)bilinearInterpolate(ddy00, ddy10, ddy01, ddy11, ix, iz);
 
     float ddz00 = v001 - v000;
     float ddz10 = v101 - v100;
     float ddz01 = v011 - v010;
     float ddz11 = v111 - v110;
-    float dv_dz = bilinearInterpolate(ddz00, ddz10, ddz01, ddz11, ix, iy);
+    float dv_dz = (float)bilinearInterpolate(ddz00, ddz10, ddz01, ddz11, ix, iy);
 
     grad->x = dv_dx;
     grad->y = dv_dy;

@@ -23,7 +23,7 @@ AABB::AABB() {
 }
 
 AABB::AABB(double x, double y, double z, double w, double h, double d) : 
-               position(x, y, z), width(w), height(h), depth(d) {
+               position((float)x, (float)y, (float)z), width(w), height(h), depth(d) {
 }
 
 AABB::AABB(vmath::vec3 p, double w, double h, double d) : 
@@ -38,7 +38,7 @@ AABB::AABB(vmath::vec3 p1, vmath::vec3 p2) {
     double maxy = fmax(p1.y, p2.y);
     double maxz = fmax(p1.z, p2.z);
 
-    position = vmath::vec3(minx, miny, minz);
+    position = vmath::vec3((float)minx, (float)miny, (float)minz);
     width = maxx - minx;
     height = maxy - miny;
     depth = maxz - minz;
@@ -68,7 +68,7 @@ AABB::AABB(std::vector<vmath::vec3> &points) {
     }
 
     double eps = 1e-9;
-    position = vmath::vec3(minx, miny, minz);
+    position = vmath::vec3((float)minx, (float)miny, (float)minz);
     width = maxx - minx + eps;
     height = maxy - miny + eps;
     depth = maxz - minz + eps;
@@ -98,14 +98,14 @@ AABB::AABB(Triangle t, std::vector<vmath::vec3> &vertices) {
     }
 
     double eps = 1e-9;
-    position = vmath::vec3(minx, miny, minz);
+    position = vmath::vec3((float)minx, (float)miny, (float)minz);
     width = maxx - minx + eps;
     height = maxy - miny + eps;
     depth = maxz - minz + eps;
 }
 
 AABB::AABB(GridIndex g, double dx) {
-    position = vmath::vec3(g.i*dx, g.j*dx, g.k*dx);
+    position = vmath::vec3(g.i*(float)dx, g.j*(float)dx, g.k*(float)dx);
     width = height = depth = dx;
 }
 
@@ -114,7 +114,7 @@ AABB::~AABB() {
 
 void AABB::expand(double v) {
     double h = 0.5 * v;
-    position -= vmath::vec3(h, h, h);
+    position -= vmath::vec3((float)h, (float)h, (float)h);
     width += v;
     height += v;
     depth += v;
@@ -128,7 +128,7 @@ bool AABB::isPointInside(vmath::vec3 p) {
 bool AABB::isLineIntersecting(vmath::vec3 p1, vmath::vec3 p2) {
 
     vmath::vec3 min = position;
-    vmath::vec3 max = position + vmath::vec3(width, height, depth);
+    vmath::vec3 max = position + vmath::vec3((float)width, (float)height, (float)depth);
 
     vmath::vec3 d = (p2 - p1) * 0.5f;
     vmath::vec3 e = (max - min) * 0.5f;
@@ -171,12 +171,12 @@ AABB AABB::getIntersection(AABB bbox) {
         return AABB();
     }
 
-    double interminx = fmax(minp1.x, minp2.x);
-    double interminy = fmax(minp1.y, minp2.y);
-    double interminz = fmax(minp1.z, minp2.z);
-    double intermaxx = fmin(maxp1.x, maxp2.x);
-    double intermaxy = fmin(maxp1.y, maxp2.y);
-    double intermaxz = fmin(maxp1.z, maxp2.z);
+    float interminx = fmax(minp1.x, minp2.x);
+    float interminy = fmax(minp1.y, minp2.y);
+    float interminz = fmax(minp1.z, minp2.z);
+    float intermaxx = fmin(maxp1.x, maxp2.x);
+    float intermaxy = fmin(maxp1.y, maxp2.y);
+    float intermaxz = fmin(maxp1.z, maxp2.z);
 
     return AABB(vmath::vec3(interminx, interminy, interminz), 
                 vmath::vec3(intermaxx, intermaxy, intermaxz));
@@ -188,12 +188,12 @@ AABB AABB::getUnion(AABB bbox) {
     vmath::vec3 maxp1 = getMaxPoint();
     vmath::vec3 maxp2 = bbox.getMaxPoint();
 
-    double unionminx = fmin(minp1.x, minp2.x);
-    double unionminy = fmin(minp1.y, minp2.y);
-    double unionminz = fmin(minp1.z, minp2.z);
-    double unionmaxx = fmax(maxp1.x, maxp2.x);
-    double unionmaxy = fmax(maxp1.y, maxp2.y);
-    double unionmaxz = fmax(maxp1.z, maxp2.z);
+    float unionminx = fmin(minp1.x, minp2.x);
+    float unionminy = fmin(minp1.y, minp2.y);
+    float unionminz = fmin(minp1.z, minp2.z);
+    float unionmaxx = fmax(maxp1.x, maxp2.x);
+    float unionmaxy = fmax(maxp1.y, maxp2.y);
+    float unionmaxz = fmax(maxp1.z, maxp2.z);
 
     return AABB(vmath::vec3(unionminx, unionminy, unionminz), 
                 vmath::vec3(unionmaxx, unionmaxy, unionmaxz));
@@ -204,7 +204,7 @@ vmath::vec3 AABB::getMinPoint() {
 }
 
 vmath::vec3 AABB::getMaxPoint() {
-    return position + vmath::vec3(width, height, depth);
+    return position + vmath::vec3((float)width, (float)height, (float)depth);
 }
 
 vmath::vec3 AABB::getNearestPointInsideAABB(vmath::vec3 p) {
@@ -223,9 +223,9 @@ vmath::vec3 AABB::getNearestPointInsideAABB(vmath::vec3 p, double eps) {
     p.y = fmax(p.y, min.y);
     p.z = fmax(p.z, min.z);
 
-    p.x = fmin(p.x, max.x - eps);
-    p.y = fmin(p.y, max.y - eps);
-    p.z = fmin(p.z, max.z - eps);
+    p.x = fmin(p.x, max.x - (float)eps);
+    p.y = fmin(p.y, max.y - (float)eps);
+    p.z = fmin(p.z, max.z - (float)eps);
 
     return p;
 }

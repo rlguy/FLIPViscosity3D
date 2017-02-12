@@ -50,7 +50,7 @@ private:
     vmath::vec3 _getVelocity(vmath::vec3 position);
     void _updateLiquidSDF();
 
-    void _advectVelocityField(float dt);
+    void _advectVelocityField();
     void _advectVelocityFieldU(Array3d<bool> &fluidCellGrid);
     void _advectVelocityFieldV(Array3d<bool> &fluidCellGrid);
     void _advectVelocityFieldW(Array3d<bool> &fluidCellGrid);
@@ -96,16 +96,16 @@ private:
     ValidVelocityComponentGrid _validVelocities;
 
     MeshLevelSet _solidSDF;
-    double _meshLevelSetExactBand = 3;
+    int _meshLevelSetExactBand = 3;
 
     ParticleLevelSet _liquidSDF;
     float _particleRadius;
 
     WeightGrid _weightGrid;
 
-    double _CFLConditionNumber = 5.0;
-    double _minfrac = 0.01f;
-    double _ratioPICtoFLIP = 0.05f;
+    float _CFLConditionNumber = 5.0;
+    float _minfrac = 0.01f;
+    float _ratioPICtoFLIP = 0.05f;
 
     Array3d<float> _viscosity;
     vmath::vec3 _gravity;

@@ -54,9 +54,9 @@ void FluidSim::addLiquid(TriangleMesh &mesh) {
                 vmath::vec3 gpos = Grid3d::GridIndexToPosition(i, j, k, _dx);
 
                 for (int i_dx = 0; i_dx < 8; i_dx++) {
-                    float a = _randomDouble(0.0, _dx); 
-                    float b = _randomDouble(0.0, _dx); 
-                    float c = _randomDouble(0.0, _dx);
+                    float a = (float)_randomDouble(0.0, _dx); 
+                    float b = (float)_randomDouble(0.0, _dx); 
+                    float c = (float)_randomDouble(0.0, _dx);
                     vmath::vec3 jitter = vmath::vec3(a, b, c);
                     vmath::vec3 pos = gpos + jitter;
 
@@ -123,7 +123,7 @@ void FluidSim::advance(float dt) {
         _updateLiquidSDF();
 
         std::cout << "Velocity advection" << std::endl;
-        _advectVelocityField(substep);
+        _advectVelocityField();
 
         std::cout << "Add body force" << std::endl;
         _addBodyForce(substep);
@@ -176,13 +176,13 @@ TriangleMesh FluidSim::_getTriangleMeshFromAABB(AABB bbox) {
     vmath::vec3 p = bbox.position;
     std::vector<vmath::vec3> verts{
         vmath::vec3(p.x, p.y, p.z),
-        vmath::vec3(p.x + bbox.width, p.y, p.z),
-        vmath::vec3(p.x + bbox.width, p.y, p.z + bbox.depth),
-        vmath::vec3(p.x, p.y, p.z + bbox.depth),
-        vmath::vec3(p.x, p.y + bbox.height, p.z),
-        vmath::vec3(p.x + bbox.width, p.y + bbox.height, p.z),
-        vmath::vec3(p.x + bbox.width, p.y + bbox.height, p.z + bbox.depth),
-        vmath::vec3(p.x, p.y + bbox.height, p.z + bbox.depth)
+        vmath::vec3(p.x + (float)bbox.width, p.y, p.z),
+        vmath::vec3(p.x + (float)bbox.width, p.y, p.z + (float)bbox.depth),
+        vmath::vec3(p.x, p.y, p.z + (float)bbox.depth),
+        vmath::vec3(p.x, p.y + (float)bbox.height, p.z),
+        vmath::vec3(p.x + (float)bbox.width, p.y + (float)bbox.height, p.z),
+        vmath::vec3(p.x + (float)bbox.width, p.y + (float)bbox.height, p.z + (float)bbox.depth),
+        vmath::vec3(p.x, p.y + (float)bbox.height, p.z + (float)bbox.depth)
     };
 
     std::vector<Triangle> tris{
@@ -242,7 +242,7 @@ float FluidSim::_cfl() {
         }
     }
     
-    return (_CFLConditionNumber * _dx) / maxvel;
+    return (float)((_CFLConditionNumber * _dx) / maxvel);
 }
 
 void FluidSim::_addBodyForce(float dt) {
@@ -344,12 +344,13 @@ void FluidSim::_computeVelocityScalarField(Array3d<float> &field,
     int U = 0; int V = 1; int W = 2;
 
     vmath::vec3 offset;
+    float hdx = (float)(0.5*_dx);
     if (dir == U) {
-        offset = vmath::vec3(0.0, 0.5*_dx, 0.5*_dx);
+        offset = vmath::vec3(0.0f, hdx, hdx);
     } else if (dir == V) {
-        offset = vmath::vec3(0.5*_dx, 0.0, 0.5*_dx);
+        offset = vmath::vec3(hdx, 0.0f, hdx);
     } else if (dir == W) {
-        offset = vmath::vec3(0.5*_dx, 0.5*_dx, 0.0);
+        offset = vmath::vec3(hdx, hdx, 0.0f);
     } else {
         return;
     }
@@ -366,15 +367,15 @@ void FluidSim::_computeVelocityScalarField(Array3d<float> &field,
     // transfer particle velocity component to grid
     for (size_t pidx = 0; pidx < particles.size(); pidx++) {
         vmath::vec3 p = particles[pidx].position - offset;
-        double velocityComponent = particles[pidx].velocity[dir];
+        float velocityComponent = particles[pidx].velocity[dir];
 
         GridIndex g = Grid3d::positionToGridIndex(p, _dx);
-        GridIndex gmin(fmax(g.i - 1, 0), 
-                       fmax(g.j - 1, 0), 
-                       fmax(g.k - 1, 0));
-        GridIndex gmax(fmin(g.i + 1, field.width - 1), 
-                       fmin(g.j + 1, field.height - 1), 
-                       fmin(g.k + 1, field.depth - 1));
+        GridIndex gmin((int)fmax(g.i - 1, 0), 
+                       (int)fmax(g.j - 1, 0), 
+                       (int)fmax(g.k - 1, 0));
+        GridIndex gmax((int)fmin(g.i + 1, field.width - 1), 
+                       (int)fmin(g.j + 1, field.height - 1), 
+                       (int)fmin(g.k + 1, field.depth - 1));
 
         for (int k = gmin.k; k <= gmax.k; k++) {
             for (int j = gmin.j; j <= gmax.j; j++) {
@@ -382,7 +383,7 @@ void FluidSim::_computeVelocityScalarField(Array3d<float> &field,
 
                     vmath::vec3 gpos = Grid3d::GridIndexToPosition(i, j, k, _dx);
                     vmath::vec3 v = gpos - p;
-                    double distsq = vmath::dot(v, v);
+                    float distsq = vmath::dot(v, v);
                     if (distsq < rsq) {
                         float weight = 1.0f - coef1 * distsq * distsq * distsq + 
                                               coef2 * distsq * distsq - 
@@ -473,7 +474,7 @@ void FluidSim::_advectVelocityFieldW(Array3d<bool> &fluidCellGrid) {
     }
 }
 
-void FluidSim::_advectVelocityField(float dt) {
+void FluidSim::_advectVelocityField() {
     Array3d<bool> fluidCellGrid(_isize, _jsize, _ksize, false);
     for(int k = 0; k < _ksize; k++) {
         for(int j = 0; j < _jsize; j++) {
@@ -665,7 +666,7 @@ void FluidSim::_applyPressure(float dt, Array3d<float> &pressureGrid) {
 
 void FluidSim::_extrapolateVelocityField(MACVelocityField &vfield, 
                                          ValidVelocityComponentGrid &valid) {
-    int numLayers = ceil(_CFLConditionNumber) + 2;
+    int numLayers = (int)ceil(_CFLConditionNumber) + 2;
     vfield.extrapolateVelocityField(valid, numLayers);
 }
 

@@ -88,12 +88,12 @@ vmath::vec3  vmath::vec3::divide(float s) {
 }
 
 vmath::vec3 vmath::operator/(const vmath::vec3 &v, float s) {
-    float inv = 1.0 / s;
+    float inv = 1.0f / s;
     return vmath::vec3(v.x*inv, v.y*inv, v.z*inv);
 }
 
 vmath::vec3& vmath::operator/=(vmath::vec3 &v1, float s) {
-    float inv = 1.0 / s;
+    float inv = 1.0f / s;
     v1.x *= inv;
     v1.y *= inv;
     v1.z *= inv;
@@ -272,14 +272,14 @@ vmath::mat3 vmath::mat3::divide(float s) {
 }
 
 vmath::mat3 vmath::operator/(const vmath::mat3 &m, float s) {
-    float inv = 1.0 / s;
+    float inv = 1.0f / s;
     return vmath::mat3(m.m[0]*inv, m.m[1]*inv, m.m[2]*inv,
                        m.m[3]*inv, m.m[4]*inv, m.m[5]*inv, 
                        m.m[6]*inv, m.m[7]*inv, m.m[8]*inv);
 }
 
 vmath::mat3 &vmath::operator/=(vmath::mat3 &m, float s) {
-    float inv = 1.0 / s;
+    float inv = 1.0f / s;
     m.m[0] *= inv; m.m[1] *= inv; m.m[2] *= inv; 
     m.m[3] *= inv; m.m[4] *= inv; m.m[5] *= inv; 
     m.m[6] *= inv; m.m[7] *= inv; m.m[8] *= inv; 
