@@ -8,7 +8,7 @@ LDLIBS=
 
 SOURCEPATH=src
 SOURCES=$(SOURCEPATH)/aabb.cpp \
-		$(SOURCEPATH)/fluidsim.cpp \
+		$(SOURCEPATH)/fluidsimulation.cpp \
 		$(SOURCEPATH)/interpolation.cpp \
 		$(SOURCEPATH)/levelsetutils.cpp \
 		$(SOURCEPATH)/macvelocityfield.cpp \

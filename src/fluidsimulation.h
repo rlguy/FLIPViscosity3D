@@ -25,7 +25,7 @@ struct FluidParticle {
                                   velocity(v) {}
 };
 
-class FluidSim {
+class FluidSimulation {
 
 public:
     void initialize(int i, int j, int k, float dx);
