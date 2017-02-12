@@ -13,3 +13,5 @@ include_directories(src)
 file(GLOB SOURCES "src/*.cpp")
 
 add_executable(fluidsim ${SOURCES})
+
+file(COPY "${CMAKE_SOURCE_DIR}/sample_meshes/" DESTINATION "${CMAKE_BINARY_DIR}/sample_meshes")

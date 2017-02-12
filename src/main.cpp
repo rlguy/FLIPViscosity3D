@@ -10,7 +10,7 @@
 
 void export_particles(int frame, std::vector<FluidParticle> &particles) {
     TriangleMesh mesh;
-    float scale = 10.0;
+    float scale = 10.0f;
     for(unsigned int i = 0; i < particles.size(); i++) {
         mesh.vertices.push_back(scale * particles[i].position);
     }
@@ -22,33 +22,35 @@ void export_particles(int frame, std::vector<FluidParticle> &particles) {
     std::string filename = "C:/Users/Ryan/Downloads/variational_test_cache_flip_fluid2/bakefiles/" + currentFrame + ".bobj";
     mesh.writeMeshToBOBJ(filename);
 
-    std::cout << "Exporting: " << filename << std::endl;
+    std::cout << "Exporting Particles: " << filename << std::endl;
 }
 
 int main() {
-    int isize = 32;
-    int jsize = 32;
-    int ksize = 32;
-    float dx = 1.0f / (float)isize;
+
+    int isize = 64;
+    int jsize = 64;
+    int ksize = 64;
+    float dx = 1.0f / fmax(fmax(isize, jsize), ksize);
     FluidSimulation fluidsim;
 
-    printf("Initializing data\n");
+    std::cout << "Initializing Data" << std::endl;
     fluidsim.initialize(isize, jsize, ksize, dx);
     
-    printf("Initializing boundary\n");
+    std::cout << "Initializing Boundary" << std::endl;
     TriangleMesh boundaryMesh;
-    bool success = boundaryMesh.loadBOBJ("bunny.bobj");
-    boundaryMesh.writeMeshToPLY("bunny.ply");
+    bool success = boundaryMesh.loadPLY("sample_meshes/sphere_large.ply");
     FLUIDSIM_ASSERT(success);
-    fluidsim.addBoundary(boundaryMesh, false);
+    bool invertMesh = true;
+    fluidsim.addBoundary(boundaryMesh, invertMesh);
     
-    printf("Initializing liquid\n");
+    std::cout << "Initializing Liquid" << std::endl;
     TriangleMesh liquidMesh;
-    success = liquidMesh.loadBOBJ("sphere.bobj");
+    success = liquidMesh.loadPLY("sample_meshes/stanford_bunny.ply");
     FLUIDSIM_ASSERT(success);
     fluidsim.addLiquid(liquidMesh);
 
-    fluidsim.setViscosity(0.05f);
+    std::cout << "Initializing Settings" << std::endl;
+    fluidsim.setViscosity(5.0f);
     fluidsim.setGravity(0.0f, -9.81f, 0.0f);
 
     int num_frames = 300;
@@ -56,7 +58,7 @@ int main() {
     for(int frame = 0; frame < num_frames; frame++) {
         export_particles(frame, fluidsim.particles);
 
-        printf("Simulating liquid\n");
+        std::cout << "Simulation Liquid" << std::endl;
         fluidsim.advance(timestep);
     }
 
