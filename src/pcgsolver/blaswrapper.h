@@ -5,7 +5,7 @@
 
 #include <vector>
 
-namespace BLAS{
+namespace BLAS {
 
 // dot products ==============================================================
 
