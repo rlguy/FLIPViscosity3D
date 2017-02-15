@@ -101,6 +101,89 @@ bool TriangleMesh::loadBOBJ(std::string BOBJFilename) {
     return true;
 }
 
+// method of loading OBJ from:
+// http://www.opengl-tutorial.org/beginners-tutorials/tutorial-7-model-loading/
+bool TriangleMesh::loadOBJ(std::string filename) {
+    std::vector<vmath::vec3> temp_vertices;
+    std::vector<vmath::vec3> temp_normals;
+    std::vector<Triangle> temp_triangles;
+
+    FILE * file;
+    file = fopen(filename.c_str(), "rb");
+    if(file == NULL){
+        printf("Unable to open the OBJ file!\n");
+        return false;
+    }
+
+    for (;;) {
+        char lineHeader[128];
+        // read the first word of the line
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF) {
+            break; // EOF = End Of File. Quit the loop.
+        }
+        
+        if (strcmp( lineHeader, "v") == 0 ){
+            vmath::vec3 vertex;
+            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z );
+            temp_vertices.push_back(vertex);
+        } else if (strcmp( lineHeader, "vn" ) == 0) {
+            vmath::vec3 normal;
+            fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z );
+            temp_normals.push_back(normal);
+        } else if (strcmp( lineHeader, "f" ) == 0) {
+            long start = ftell(file);
+            unsigned int vertexIndex[3];
+            unsigned int uvIndex[3];
+            unsigned int normalIndex[3];
+            int matches = fscanf(file, "%d %d %d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2]);
+
+            if (matches != 3){
+                long diff = ftell(file) - start;
+                fseek (file, -diff , SEEK_CUR);
+                start = ftell(file);
+                matches = fscanf(file, "%d//%d %d//%d %d//%d\n", 
+                                 &vertexIndex[0], &normalIndex[0], 
+                                 &vertexIndex[1], &normalIndex[1],
+                                 &vertexIndex[2], &normalIndex[2]);
+
+                if (matches != 6) {
+                    long diff = ftell(file) - start;
+                    fseek (file, -diff , SEEK_CUR);
+                    matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n", 
+                                     &vertexIndex[0], &normalIndex[0], &uvIndex[0],
+                                     &vertexIndex[1], &normalIndex[1], &uvIndex[1],
+                                     &vertexIndex[2], &normalIndex[2], &uvIndex[2]);
+
+                    if (matches != 9) {
+                        printf("File can't be read by our simple parser : ( Try exporting with other options\n");
+                        return false;
+                    }
+                }
+            }
+
+            Triangle t = Triangle(vertexIndex[0] - 1,
+                                  vertexIndex[1] - 1,
+                                  vertexIndex[2] - 1);
+            temp_triangles.push_back(t);
+        }
+    }
+
+    fclose(file);
+
+    vertices.clear();
+    triangles.clear();
+    vertices.insert(vertices.end(), temp_vertices.begin(), temp_vertices.end());
+    triangles.insert(triangles.end(), temp_triangles.begin(), temp_triangles.end());
+
+    normals.clear();
+    if (normals.size() == vertices.size()) {
+        normals.insert(normals.end(), normals.begin(), normals.end());
+    }
+
+    return true;
+}
+
 void TriangleMesh::writeMeshToPLY(std::string filename) {
     // Header format:
     /*
@@ -292,12 +375,43 @@ void TriangleMesh::writeMeshToBOBJ(std::string filename) {
     bobj.close();
 }
 
-std::string TriangleMesh::getFileExtension(TriangleMeshFormat fmt) {
-    if (fmt == TriangleMeshFormat::ply) {
-        return "ply";
-    } else {
-        return "bobj";
+void TriangleMesh::writeMeshToOBJ(std::string filename) {
+    std::ostringstream str;
+
+    str << "# OBJ file format with ext .obj" << std::endl;
+    str << "# vertex count = " << vertices.size() << std::endl;
+    str << "# face count = " << triangles.size() << std::endl;
+
+    vmath::vec3 p;
+    for (unsigned int i = 0; i < vertices.size(); i++) {
+        p = vertices[i];
+        str << "v " << p.x << " " << p.y << " " << p.z << std::endl;
     }
+
+    if (normals.size() == vertices.size()) {
+        vmath::vec3 n;
+        for (unsigned int i = 0; i < normals.size(); i++) {
+            n = normals[i];
+            str << "vn " << n.x << " " << n.y << " " << n.z << std::endl;
+        }
+    }
+
+    Triangle t;
+    int v1, v2, v3;
+    for (unsigned int i = 0; i < triangles.size(); i++) {
+        t = triangles[i];
+        v1 = t.tri[0] + 1;
+        v2 = t.tri[1] + 1;
+        v3 = t.tri[2] + 1;
+
+        str << "f " << v1 << "//" << v1 << " " <<
+            v2 << "//" << v2 << " " <<
+            v3 << "//" << v3 << std::endl;
+    }
+
+    std::ofstream out(filename);
+    out << str.str();
+    out.close();
 }
 
 void TriangleMesh::translate(vmath::vec3 t) {
