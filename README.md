@@ -17,6 +17,8 @@ The following images were generated from particle data output by the program and
 
 [![alt tag](http://i.imgur.com/vivBTG0.jpg)](http://i.imgur.com/M2G2tm4.jpg) [![alt tag](http://i.imgur.com/7DnmSfm.jpg)](http://i.imgur.com/lkaoatu.jpg)
 
+An animation of a buckling honey simulation can be viewed [here](https://www.youtube.com/watch?v=Oxsr4m-s3C8).
+
 ## Features
 Below is a list of features implemented in the simulator.
 
