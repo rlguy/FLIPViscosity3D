@@ -40,3 +40,9 @@ Sample triangle meshes are located in the ```sample_meshes``` directory.
 The default simulation will drop a mass of fluid in the shape of the Stanford Bunny inside of a spherical container.
 
 [![alt tag](http://i.imgur.com/sRZi5bQ.jpg)](http://i.imgur.com/rRRnJXs.jpg)
+
+## Rendering in Blender
+
+An example script for how to import the particle meshes into [Blender](http://blender.org) for rendering is located [here](src/blender/render_particles.py). This script will import a .ply or .obj mesh into Blender and duplicate a sphere over the particles.
+
+Usage: load the script into the Blender text editor, edit the ```MESH_DIRECTORY``` variable to point to the directory containing the simulation meshes, and press the 'Run Script' button.
