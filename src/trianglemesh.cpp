@@ -528,10 +528,10 @@ bool TriangleMesh::_loadPLYVertexData(std::ifstream *file, std::string &header) 
     if (isColorEnabled) {
         vertexcolors.reserve(numVertices);
 
-        vmath::vec3 p;
+        float pdata[3]; 
         int offset = 0;
         for (int i = 0; i < numVertices; i++) {
-            memcpy(&p, vertexData + offset, 3*sizeof(float));
+            memcpy(pdata, vertexData + offset, 3*sizeof(float));
             offset += 3*sizeof(float);
 
             unsigned char r = vertexData[offset + 0];
@@ -539,7 +539,7 @@ bool TriangleMesh::_loadPLYVertexData(std::ifstream *file, std::string &header) 
             unsigned char b = vertexData[offset + 2];
             offset += 3*sizeof(char);
 
-            vertices.push_back(p);
+            vertices.push_back(vmath::vec3(pdata[0], pdata[1], pdata[2]));
             vertexcolors.push_back(vmath::vec3(r / 255.0f, g / 255.0f, b / 255.0f));
         }
     } else {
