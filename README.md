@@ -43,6 +43,6 @@ The default simulation will drop a mass of fluid in the shape of the Stanford Bu
 
 ## Rendering in Blender
 
-An example script for how to import the particle meshes into [Blender](http://blender.org) for rendering is located [here](src/blender/render_particles.py). This script will import a .ply or .obj mesh into Blender and duplicate a sphere over the particles.
+An example script for how to import the particle meshes into [Blender](http://blender.org) for rendering is located [here](src/blender/render_particles.py). This script will import a .obj mesh sequence into Blender and update the mesh data on a frame change. The sequence can be rendered in Blender 3.1 or later by converting the object to a Point Cloud using the Geometry Nodes Mesh to Points Node.
 
-Usage: load the script into the Blender text editor, edit the ```MESH_DIRECTORY``` variable to point to the directory containing the simulation meshes, and press the 'Run Script' button.
+Usage: load the script into the Blender text editor, edit the ```MESH_CACHE_PATH``` variable to point to the directory containing the simulation meshes, and press the 'Run Script' button.
