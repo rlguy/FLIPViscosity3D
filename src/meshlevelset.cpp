@@ -155,7 +155,7 @@ void MeshLevelSet::calculateUnion(MeshLevelSet &levelset) {
     FLUIDSIM_ASSERT(oi == _isize && oj == _jsize && ok == _ksize);
 
     TriangleMesh *omesh = levelset.getTriangleMesh();
-    int indexOffset = _mesh.vertices.size();
+    int indexOffset = (int)_mesh.vertices.size();
     _mesh.vertices.insert(_mesh.vertices.end(), omesh->vertices.begin(), omesh->vertices.end());
 
     Triangle t;
@@ -237,7 +237,7 @@ void MeshLevelSet::_computeExactBandDistanceField(int bandwidth,
                     float d = _pointToTriangleDistance(gpos, p, q, r);
                     if (d < _phi(i, j, k)) {
                         _phi.set(i, j, k, d);
-                        _closestTriangles.set(i, j, k, tidx);
+                        _closestTriangles.set(i, j, k, (int)tidx);
                     }
                 }
             }
@@ -286,7 +286,7 @@ void MeshLevelSet::_propagateDistanceField() {
         }
     }
 
-    int unknownidx = queue.size();
+    int unknownidx = (int)queue.size();
     int startidx = 0;
     GridIndex g, n, nbs[6];
     while (startidx < (int)queue.size()) {

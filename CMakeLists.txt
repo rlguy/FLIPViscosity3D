@@ -4,6 +4,7 @@ project(fluidsim)
 set(CMAKE_BUILD_TYPE Release)
 
 if (MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
     set(CMAKE_CXX_FLAGS "/O2 /W4 /EHsc")
 else()
     set(CMAKE_CXX_FLAGS "-O3 -std=c++11 -Wall")

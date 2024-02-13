@@ -75,9 +75,9 @@ bool TriangleMesh::loadBOBJ(std::string BOBJFilename) {
     }
     
     int binsize = 3 * numverts * sizeof(float);
-    std::vector<vmath::vec3> vertices(numverts);
+    std::vector<vmath::vec3> verts(numverts);
     if (numverts > 0) {
-        file.read((char *)vertices.data(), binsize);
+        file.read((char *)verts.data(), binsize);
         if (!file.good()) {
             return false;
         }
@@ -90,16 +90,16 @@ bool TriangleMesh::loadBOBJ(std::string BOBJFilename) {
     }
 
     binsize = 3 * numfaces * sizeof(int);
-    std::vector<Triangle> triangles(numfaces);
+    std::vector<Triangle> tris(numfaces);
     if (numfaces > 0) {
-        file.read((char *)triangles.data(), binsize);
+        file.read((char *)tris.data(), binsize);
         if (!file.good()) {
             return false;
         }
     }
 
-    this->vertices = vertices;
-    this->triangles = triangles;
+    this->vertices = verts;
+    this->triangles = tris;
 
     return true;
 }
@@ -112,8 +112,8 @@ bool TriangleMesh::loadOBJ(std::string filename) {
     std::vector<Triangle> temp_triangles;
 
     FILE * file;
-    file = fopen(filename.c_str(), "rb");
-    if(file == NULL){
+    errno_t err = fopen_s(&file, filename.c_str(), "rb");
+    if(err != 0){
         printf("Unable to open the OBJ file!\n");
         return false;
     }
@@ -151,8 +151,8 @@ bool TriangleMesh::loadOBJ(std::string filename) {
                                  &vertexIndex[2], &normalIndex[2]);
 
                 if (matches != 6) {
-                    long diff = ftell(file) - start;
-                    fseek (file, -diff , SEEK_CUR);
+                    long d = ftell(file) - start;
+                    fseek (file, -d , SEEK_CUR);
                     matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n", 
                                      &vertexIndex[0], &normalIndex[0], &uvIndex[0],
                                      &vertexIndex[1], &normalIndex[1], &uvIndex[1],

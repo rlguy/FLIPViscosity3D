@@ -26,7 +26,7 @@ inline int indexAbsMax(const std::vector<double> &x) {
 
     int maxind = 0;
     double maxvalue = 0;
-    for(size_t i = 0; i < x.size(); i++) {
+    for(int i = 0; i < (int)x.size(); i++) {
         if (fabs(x[i]) > maxvalue) {
             maxvalue = fabs(x[i]);
             maxind = i;

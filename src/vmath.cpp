@@ -190,8 +190,8 @@ std::ostream& vmath::operator<<(std::ostream& os, const vmath::mat3& m){
     return os;
 }
 
-vmath::mat3 vmath::mat3::add(const mat3 &m) {
-    return *this + m;
+vmath::mat3 vmath::mat3::add(const mat3 &mat) {
+    return *this + mat;
 }
 
 vmath::mat3 vmath::operator+(const vmath::mat3 &m1, const vmath::mat3 &m2) {
@@ -207,8 +207,8 @@ vmath::mat3 &vmath::operator+=(vmath::mat3 &m1, const vmath::mat3 &m2) {
     return m1;
 }
 
-vmath::mat3 vmath::mat3::subtract(const mat3 &m) {
-    return *this - m;
+vmath::mat3 vmath::mat3::subtract(const mat3 &mat) {
+    return *this - mat;
 }
 
 vmath::mat3 vmath::operator-(const vmath::mat3 &m1, const vmath::mat3 &m2) {
@@ -228,8 +228,8 @@ vmath::mat3 vmath::mat3::mult(float s) {
     return *this * s;
 }
 
-vmath::mat3 vmath::mat3::mult(const vmath::mat3 &m) {
-    return *this * m;
+vmath::mat3 vmath::mat3::mult(const vmath::mat3 &mat) {
+    return *this * mat;
 }
 
 vmath::vec3 vmath::mat3::mult(const vmath::vec3 &v) {

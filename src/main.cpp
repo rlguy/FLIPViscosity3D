@@ -50,7 +50,7 @@ int main() {
     int isize = 64;
     int jsize = 64;
     int ksize = 64;
-    float dx = 1.0f / fmax(fmax(isize, jsize), ksize);
+    float dx = 1.0f / std::max(std::max(isize, jsize), ksize);
     fluidsim.initialize(isize, jsize, ksize, dx);
     
     std::cout << "Initializing Boundary" << std::endl;
